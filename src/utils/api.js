@@ -1,16 +1,17 @@
 // API configuration that works with both local development and port forwarding
 const getApiBase = () => {
-  // 1. Check environment variable (Best Practice)
+  console.log('🚀 API_JS_VERSION: 3.0 (Hardcoded Fix)'); // Proof of update
+
+  // 1. Force Vercel Check immediately
+  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+    console.log('☁️ Detected Vercel (Priority), using Render Backend');
+    return 'https://proeduvate-coding-module.onrender.com';
+  }
+
+  // 2. Check environment variable
   if (import.meta.env.VITE_API_URL) {
     console.log('📦 Using VITE_API_URL from environment');
     return import.meta.env.VITE_API_URL;
-  }
-
-  // 2. Hardcoded Fallback for Vercel (Safety Net)
-  // This saves you if the Env Var is missing in Vercel.
-  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
-    console.log('☁️ Detected Vercel, using Render Backend');
-    return 'https://proeduvate-coding-module.onrender.com';
   }
 
   // For development with port forwarding
