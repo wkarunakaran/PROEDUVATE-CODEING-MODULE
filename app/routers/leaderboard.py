@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Depends
 from bson import ObjectId
 
-from app.db.mongo import db
+from app.db.mongo import get_database
 from app.security.auth import get_current_user
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
 
 @router.get("/problem/{problem_id}")
 async def problem_leaderboard(problem_id: str, current_user = Depends(get_current_user)):
+    db = get_database()
     cursor = db.attempts.find({
         "problem_id": problem_id,
         "finalCompleted": True

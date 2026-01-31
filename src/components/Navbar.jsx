@@ -1,4 +1,5 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
+import { Moon, Sun } from "lucide-react";
 
 export default function Navbar({ user, onLogout, theme, toggleTheme }) {
   const location = useLocation();
@@ -23,10 +24,9 @@ export default function Navbar({ user, onLogout, theme, toggleTheme }) {
             <NavLink
               to="/dashboard"
               className={({ isActive }) =>
-                `px-3 py-1 rounded-full border ${
-                  isActive
-                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-200"
-                    : "border-transparent text-slate-300 hover:border-slate-600"
+                `px-3 py-1 rounded-full border ${isActive
+                  ? "border-emerald-500 bg-emerald-500/20 text-emerald-200"
+                  : "border-transparent text-slate-300 hover:border-slate-600"
                 }`
               }
             >
@@ -35,10 +35,9 @@ export default function Navbar({ user, onLogout, theme, toggleTheme }) {
             <NavLink
               to="/problems"
               className={({ isActive }) =>
-                `px-3 py-1 rounded-full border ${
-                  isActive
-                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-200"
-                    : "border-transparent text-slate-300 hover:border-slate-600"
+                `px-3 py-1 rounded-full border ${isActive
+                  ? "border-emerald-500 bg-emerald-500/20 text-emerald-200"
+                  : "border-transparent text-slate-300 hover:border-slate-600"
                 }`
               }
             >
@@ -47,10 +46,9 @@ export default function Navbar({ user, onLogout, theme, toggleTheme }) {
             <NavLink
               to="/profile"
               className={({ isActive }) =>
-                `px-3 py-1 rounded-full border ${
-                  isActive
-                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-200"
-                    : "border-transparent text-slate-300 hover:border-slate-600"
+                `px-3 py-1 rounded-full border ${isActive
+                  ? "border-emerald-500 bg-emerald-500/20 text-emerald-200"
+                  : "border-transparent text-slate-300 hover:border-slate-600"
                 }`
               }
             >
@@ -59,10 +57,9 @@ export default function Navbar({ user, onLogout, theme, toggleTheme }) {
             <NavLink
               to="/competitive"
               className={({ isActive }) =>
-                `px-3 py-1 rounded-full border ${
-                  isActive
-                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-200"
-                    : "border-transparent text-slate-300 hover:border-slate-600"
+                `px-3 py-1 rounded-full border ${isActive
+                  ? "border-emerald-500 bg-emerald-500/20 text-emerald-200"
+                  : "border-transparent text-slate-300 hover:border-slate-600"
                 }`
               }
             >
@@ -72,10 +69,9 @@ export default function Navbar({ user, onLogout, theme, toggleTheme }) {
               <NavLink
                 to="/admin"
                 className={({ isActive }) =>
-                  `px-3 py-1 rounded-full border ${
-                    isActive
-                      ? "border-emerald-500 bg-emerald-500/20 text-emerald-200"
-                      : "border-transparent text-slate-300 hover:border-slate-600"
+                  `px-3 py-1 rounded-full border ${isActive
+                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-200"
+                    : "border-transparent text-slate-300 hover:border-slate-600"
                   }`
                 }
               >
@@ -91,7 +87,7 @@ export default function Navbar({ user, onLogout, theme, toggleTheme }) {
             className="h-8 w-8 flex items-center justify-center rounded-full border border-slate-600 text-xs text-slate-300 hover:border-emerald-500 hover:text-emerald-300"
             title="Toggle theme"
           >
-            {theme === "dark" ? "🌙" : "☀️"}
+            {theme === "dark" ? <Moon size={16} /> : <Sun size={16} />}
           </button>
 
           {user ? (

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 
-from app.db.mongo import db
+from app.db.mongo import get_database
 from app.schemas.attempt import AttemptCreate, AttemptPublic
 from app.security.auth import get_current_user
 
@@ -12,6 +12,7 @@ async def upsert_attempt(
     attempt_in: AttemptCreate,
     current_user = Depends(get_current_user),
 ):
+    db = get_database()
     if attempt_in.user_id != str(current_user["_id"]):
         raise HTTPException(status_code=403, detail="Cannot submit for another user")
 
@@ -35,6 +36,7 @@ async def upsert_attempt(
 
 @router.get("/me", response_model=List[AttemptPublic])
 async def list_my_attempts(current_user = Depends(get_current_user)):
+    db = get_database()
     cursor = db.attempts.find({ "user_id": str(current_user["_id"]) })
     results = []
     async for doc in cursor:

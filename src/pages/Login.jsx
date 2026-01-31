@@ -1,20 +1,51 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import { API_BASE } from "../utils/api";
 
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) {
       setError("Please enter both username and password.");
       return;
     }
-    onLogin(username.trim());
-    navigate("/dashboard");
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      // Try to login via backend
+      const response = await fetch(`${API_BASE}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: username.trim(),
+          password: password.trim()
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem("token", data.access_token);
+        const loginSuccess = await onLogin(username.trim());
+        if (loginSuccess !== false) {
+          navigate("/dashboard");
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setError(errorData.detail || "Invalid username or password.");
+      }
+    } catch (err) {
+      setError(`Connection error: ${err.message}. Make sure the backend is running.`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -50,11 +81,18 @@ export default function Login({ onLogin }) {
           )}
           <button
             type="submit"
-            className="w-full mt-2 rounded-full bg-emerald-500 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+            disabled={isLoading}
+            className="w-full mt-2 rounded-full bg-emerald-500 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Sign in
+            {isLoading ? "Signing in..." : "Sign in"}
           </button>
         </form>
+        <div className="mt-4 text-center text-xs text-slate-400">
+          Don't have an account?{" "}
+          <Link to="/register" className="text-emerald-400 hover:text-emerald-300">
+            Sign up
+          </Link>
+        </div>
       </div>
     </div>
   );

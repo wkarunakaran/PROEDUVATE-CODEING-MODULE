@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from datetime import timedelta
 
-from app.db.mongo import db
+from app.db.mongo import get_database
 from app.schemas.user import UserCreate, UserLogin, UserPublic
 from app.schemas.auth import Token
 from app.security.auth import (
@@ -16,6 +16,14 @@ settings = get_settings()
 
 @router.post("/register", response_model=UserPublic)
 async def register(user_in: UserCreate):
+    try:
+        db = get_database()
+    except RuntimeError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database connection unavailable",
+        )
+
     existing = await db.users.find_one({ "username": user_in.username })
     if existing:
         raise HTTPException(status_code=400, detail="Username already exists")
@@ -36,6 +44,14 @@ async def register(user_in: UserCreate):
 
 @router.post("/login", response_model=Token)
 async def login(data: UserLogin):
+    try:
+        db = get_database()
+    except RuntimeError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database connection unavailable",
+        )
+
     user = await db.users.find_one({ "username": data.username })
     if not user or not verify_password(data.password, user["hashed_password"]):
         raise HTTPException(

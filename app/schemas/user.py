@@ -18,6 +18,7 @@ class UserInDB(UserBase):
     xp: int = 0
     level: int = 1
     achievements: List[str] = []
+    rating: int = 1200  # Competitive rating (ELO-style)
 
 class UserPublic(UserBase):
     id: str
@@ -25,3 +26,4 @@ class UserPublic(UserBase):
     xp: int = 0
     level: int = 1
     achievements: List[str] = []
+    rating: int = 1200  # Competitive rating (ELO-style)

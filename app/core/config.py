@@ -12,6 +12,15 @@ class Settings(BaseModel):
     jwt_secret: str = os.getenv("JWT_SECRET", "changeme")
     jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
     access_token_expire_minutes: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+    
+    # Google API
+    google_api_key: str = os.getenv("GOOGLE_API_KEY", "")
+    
+    # AWS Configuration
+    aws_region: str = os.getenv("AWS_REGION", "eu-north-1")
+    aws_access_key_id: str = os.getenv("AWS_ACCESS_KEY_ID", "")
+    aws_secret_access_key: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+    aws_lambda_function_name: str = os.getenv("AWS_LAMBDA_FUNCTION_NAME", "python-code-executor")
 
     @property
     def cors_origins(self) -> list[str]:

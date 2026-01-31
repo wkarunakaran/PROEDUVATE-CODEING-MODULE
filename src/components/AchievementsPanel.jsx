@@ -1,3 +1,5 @@
+import { CheckCircle2, Clock, Globe } from "lucide-react";
+
 export default function AchievementsPanel({ stats }) {
   const { totalSolved, fastSolve, multiLang, bestTime } = stats;
 
@@ -7,21 +9,21 @@ export default function AchievementsPanel({ stats }) {
       label: "First Solve",
       desc: "Solved at least one problem.",
       unlocked: totalSolved >= 1,
-      icon: "✅",
+      icon: <CheckCircle2 size={20} />,
     },
     {
       id: "speed-runner",
       label: "Speed Runner",
       desc: "Solved a problem in under 60 seconds.",
       unlocked: fastSolve,
-      icon: "⏱",
+      icon: <Clock size={20} />,
     },
     {
       id: "polyglot",
       label: "Polyglot",
       desc: "Solved the same problem in 2+ languages.",
       unlocked: multiLang,
-      icon: "🌐",
+      icon: <Globe size={20} />,
     },
   ];
 
@@ -36,11 +38,10 @@ export default function AchievementsPanel({ stats }) {
         {badges.map((b) => (
           <div
             key={b.id}
-            className={`flex gap-2 p-2.5 rounded-xl border text-xs ${
-              b.unlocked
+            className={`flex gap-2 p-2.5 rounded-xl border text-xs ${b.unlocked
                 ? "border-emerald-500/70 bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
                 : "border-slate-700 bg-slate-900/70 opacity-70"
-            }`}
+              }`}
           >
             <div className="h-8 w-8 rounded-full bg-slate-900 flex items-center justify-center text-lg">
               {b.icon}
@@ -49,9 +50,8 @@ export default function AchievementsPanel({ stats }) {
               <span className="font-semibold">{b.label}</span>
               <span className="text-[11px] text-slate-300">{b.desc}</span>
               <span
-                className={`mt-1 text-[10px] uppercase tracking-wide ${
-                  b.unlocked ? "text-emerald-300" : "text-slate-500"
-                }`}
+                className={`mt-1 text-[10px] uppercase tracking-wide ${b.unlocked ? "text-emerald-300" : "text-slate-500"
+                  }`}
               >
                 {b.unlocked ? "Unlocked" : "Locked"}
                 {b.id === "speed-runner" && b.unlocked && bestTime && (

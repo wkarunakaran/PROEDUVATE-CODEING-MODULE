@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Dict
+from typing import Dict, Any
 
 class RoundState(BaseModel):
     code: str
@@ -10,10 +10,12 @@ class AttemptBase(BaseModel):
     user_id: str
     problem_id: str
     language: str  # python|cpp|java
-    roundState: Dict[str, RoundState] = {}
+    roundState: Dict[str, Any] = {}  # Changed to Any to support nested objects
     roundCompleted: Dict[str, bool] = {}
     totalTimeSeconds: float = 0.0
     finalCompleted: bool = False
+    lastRound: int = 1
+    globalStartTime: float = None
 
 class AttemptCreate(AttemptBase):
     pass
