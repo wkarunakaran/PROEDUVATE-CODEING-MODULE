@@ -24,7 +24,7 @@ class LobbyCreate(BaseModel):
     """Create a new multiplayer lobby"""
     problem_id: Optional[str] = None  # Optional - will be auto-generated if not provided
     game_mode: str = "standard"  # standard, bug_hunt, code_shuffle, test_master
-    time_limit_seconds: int = 1800  # 30 minutes default
+    time_limit_seconds: int = 1500  # 25 minutes default
     max_players: int = 15  # Maximum 15 players
     lobby_name: Optional[str] = None  # Optional lobby name
 
@@ -53,7 +53,7 @@ class MatchCreate(BaseModel):
     problem_id: str
     player1_id: str
     player2_id: str
-    time_limit_seconds: int = 1800  # 30 minutes default
+    time_limit_seconds: int = 1500  # 25 minutes default
     game_mode: str = "standard"  # standard, bug_hunt, code_shuffle, test_master
     
 class MatchBase(BaseModel):

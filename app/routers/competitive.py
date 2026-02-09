@@ -1690,7 +1690,7 @@ async def find_match(
                     "submissions": []
                 },
                 "player2": None,  # Will be filled when opponent joins
-                "time_limit_seconds": 1800,
+                "time_limit_seconds": 1500,
                 "status": "waiting",
                 "winner_id": None,
                 "created_at": datetime.utcnow(),

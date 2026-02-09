@@ -70,11 +70,31 @@ export default function CompetitiveMatch() {
   useEffect(() => {
     if (!match || !matchStartTime || matchCompleted) return;
 
-    const timeLimit = match.time_limit_seconds;
+    const timeLimit = match.time_limit_seconds || 900; // Default 25 minutes
+    
+    // Safety: Ensure we have a valid time limit
+    if (timeLimit <= 0) {
+      console.log("⚠️ Invalid time limit:", timeLimit);
+      return;
+    }
+    
+    // Only check timeout for active matches
+    if (match.status !== "active") {
+      console.log("⚠️ Match not active, status:", match.status);
+      return;
+    }
+    
+    // Prevent checking on initial load - wait for at least 10 seconds of game time
+    if (timeElapsed < 10) {
+      return;
+    }
+    
     const timeRemaining = Math.max(0, timeLimit - timeElapsed);
 
-    if (timeRemaining === 0 && timeElapsed > 0) {
+    // Only trigger timeout if timer reached 0 and has been running
+    if (timeRemaining === 0 && timeElapsed >= timeLimit) {
       console.log("⏰ TIME'S UP! Ending game automatically...");
+      console.log(`   Time limit: ${timeLimit}s, Elapsed: ${timeElapsed}s`);
       handleTimeExpired();
     }
   }, [timeElapsed, match, matchStartTime, matchCompleted]);
@@ -190,6 +210,11 @@ export default function CompetitiveMatch() {
 
       const data = await res.json();
       console.log("Match data:", data);
+      console.log("📊 Match Status:", data.status);
+      console.log("📊 Player1 completed:", data.player1?.completed);
+      console.log("📊 Player2 completed:", data.player2?.completed);
+      console.log("📊 Winner ID:", data.winner_id);
+      console.log("📊 Time limit:", data.time_limit_seconds);
       setMatch(data);
       
       // Set match start time for accurate timer calculation (survives page refresh)
@@ -691,7 +716,7 @@ export default function CompetitiveMatch() {
     );
   }
 
-  const timeLimit = match.time_limit_seconds;
+  const timeLimit = match.time_limit_seconds || 1500; // Default 25 minutes  
   const timeRemaining = Math.max(0, timeLimit - timeElapsed);
   const timeProgress = Math.min(100, (timeElapsed / timeLimit) * 100);
   const gameMode = match.game_mode || "standard";
