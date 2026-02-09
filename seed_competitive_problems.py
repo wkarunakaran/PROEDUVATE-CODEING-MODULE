@@ -207,10 +207,10 @@ BUG_HUNT_PROBLEMS = [
             {"input": "arr = [10]", "output": "10"}
         ],
         "testCases": [
-            {"input": "[1,2,3,4,5]", "expected": "15"},
-            {"input": "[]", "expected": "0"},
-            {"input": "[10]", "expected": "10"},
-            {"input": "[-1,1,0]", "expected": "0"}
+            {"input": "arr = [1, 2, 3, 4, 5]", "expected": "15"},
+            {"input": "arr = []", "expected": "0"},
+            {"input": "arr = [10]", "expected": "10"},
+            {"input": "arr = [-1, 1, 0]", "expected": "0"}
         ],
         "hint": "Check array indexing and initialization.",
         "starterCode": {
@@ -329,10 +329,10 @@ CODE_SHUFFLE_PROBLEMS = [
             {"input": 's = "world"', "output": '"dlrow"'}
         ],
         "testCases": [
-            {"input": "hello", "expected": "olleh"},
-            {"input": "world", "expected": "dlrow"},
-            {"input": "a", "expected": "a"},
-            {"input": "", "expected": ""}
+            {"input": "s = 'hello'", "expected": "olleh"},
+            {"input": "s = 'world'", "expected": "dlrow"},
+            {"input": "s = 'a'", "expected": "a"},
+            {"input": "s = ''", "expected": ""}
         ],
         "hint": "Python slicing can reverse strings easily.",
         "starterCode": {
@@ -355,10 +355,10 @@ CODE_SHUFFLE_PROBLEMS = [
             {"input": "arr = [-1, -5, -3]", "output": "-1"}
         ],
         "testCases": [
-            {"input": "[1,5,3,9,2]", "expected": "9"},
-            {"input": "[-1,-5,-3]", "expected": "-1"},
-            {"input": "[42]", "expected": "42"},
-            {"input": "[1,1,1,1]", "expected": "1"}
+            {"input": "arr = [1, 5, 3, 9, 2]", "expected": "9"},
+            {"input": "arr = [-1, -5, -3]", "expected": "-1"},
+            {"input": "arr = [42]", "expected": "42"},
+            {"input": "arr = [1, 1, 1, 1]", "expected": "1"}
         ],
         "hint": "Use a variable to track the maximum as you iterate.",
         "starterCode": {
@@ -382,11 +382,11 @@ CODE_SHUFFLE_PROBLEMS = [
             {"input": 's = "(]"', "output": "false"}
         ],
         "testCases": [
-            {"input": "()", "expected": "true"},
-            {"input": "()[]{}", "expected": "true"},
-            {"input": "(]", "expected": "false"},
-            {"input": "([)]", "expected": "false"},
-            {"input": "{[]}", "expected": "true"}
+            {"input": "s = '()'", "expected": "true"},
+            {"input": "s = '()[]{}'", "expected": "true"},
+            {"input": "s = '(]'", "expected": "false"},
+            {"input": "s = '([)]'", "expected": "false"},
+            {"input": "s = '{[]}'", "expected": "true"}
         ],
         "hint": "Use a stack to match opening and closing brackets.",
         "starterCode": {
@@ -410,11 +410,11 @@ CODE_SHUFFLE_PROBLEMS = [
             {"input": "n = 1", "output": "1"}
         ],
         "testCases": [
-            {"input": "10", "expected": "55"},
-            {"input": "0", "expected": "0"},
-            {"input": "1", "expected": "1"},
-            {"input": "5", "expected": "5"},
-            {"input": "15", "expected": "610"}
+            {"input": "n = 10", "expected": "55"},
+            {"input": "n = 0", "expected": "0"},
+            {"input": "n = 1", "expected": "1"},
+            {"input": "n = 5", "expected": "5"},
+            {"input": "n = 15", "expected": "610"}
         ],
         "hint": "Use a dictionary to cache previously computed values.",
         "starterCode": {
@@ -437,10 +437,10 @@ CODE_SHUFFLE_PROBLEMS = [
             {"input": "arr = [5, 2, 3, 1]", "output": "[1, 2, 3, 5]"}
         ],
         "testCases": [
-            {"input": "[3,6,8,10,1,2,1]", "expected": "[1, 1, 2, 3, 6, 8, 10]"},
-            {"input": "[5,2,3,1]", "expected": "[1, 2, 3, 5]"},
-            {"input": "[1]", "expected": "[1]"},
-            {"input": "[]", "expected": "[]"}
+            {"input": "arr = [3, 6, 8, 10, 1, 2, 1]", "expected": "[1, 1, 2, 3, 6, 8, 10]"},
+            {"input": "arr = [5, 2, 3, 1]", "expected": "[1, 2, 3, 5]"},
+            {"input": "arr = [1]", "expected": "[1]"},
+            {"input": "arr = []", "expected": "[]"}
         ],
         "hint": "Quick sort uses partitioning - pick a pivot and recursively sort smaller and larger elements.",
         "starterCode": {

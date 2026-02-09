@@ -116,6 +116,11 @@ class CodeExecutor:
         """
         Wrap Python code to automatically handle function execution.
         If code defines a function but doesn't call it, add a main block.
+        Handles various input formats:
+        - Variable assignment: "arr = [1,2,3]"
+        - Multiple assignments: "nums = [2,7], target = 9"
+        - Newline-separated: "[2,7]\n9"
+        - Direct values: "121" or "abcabcbb"
         """
         import re
         
@@ -130,21 +135,62 @@ class CodeExecutor:
             wrapper = f"{code}\n\n"
             wrapper += "# Auto-generated test wrapper\n"
             wrapper += "if __name__ == '__main__':\n"
-            wrapper += f"    test_input = {repr(test_input)}\n"
+            wrapper += "    import ast\n"
             
-            # Parse input and call function
-            if params:
-                # Single parameter - pass test_input directly
-                param_name = params.split(',')[0].split(':')[0].split('=')[0].strip()
-                wrapper += f"    result = {func_name}(test_input)\n"
-            else:
+            if not params:
+                # No parameters - just call the function
                 wrapper += f"    result = {func_name}()\n"
+            elif '=' in test_input and not test_input.strip().startswith('='):
+                # Input contains variable assignments
+                # Could be: "arr = [1,2,3]" or "nums = [2,7], target = 9"
+                
+                if ',' in test_input and test_input.count('=') > 1:
+                    # Multiple assignments: "nums = [2,7], target = 9"
+                    assignments = [a.strip() for a in test_input.split(',') if '=' in a]
+                    var_names = []
+                    for assignment in assignments:
+                        wrapper += f"    {assignment}\n"
+                        var_names.append(assignment.split('=')[0].strip())
+                    wrapper += f"    result = {func_name}({', '.join(var_names)})\n"
+                else:
+                    # Single assignment: "arr = [1,2,3]"
+                    wrapper += f"    {test_input}\n"
+                    var_name = test_input.split('=')[0].strip()
+                    wrapper += f"    result = {func_name}({var_name})\n"
+            elif '\\n' in test_input or '\n' in test_input:
+                # Newline-separated values: "[2,7,11,15]\n9" or "[2,7,11,15]\\n9"
+                # Split by actual newline or escaped newline
+                lines = test_input.replace('\\n', '\n').split('\n')
+                param_count = len([p for p in params.split(',') if p.strip()])
+                
+                if len(lines) == param_count:
+                    # Parse each line as a parameter
+                    parsed_params = []
+                    for i, line in enumerate(lines):
+                        wrapper += f"    try:\n"
+                        wrapper += f"        param_{i} = ast.literal_eval({repr(line)})\n"
+                        wrapper += f"    except:\n"
+                        wrapper += f"        param_{i} = {repr(line)}\n"
+                        parsed_params.append(f"param_{i}")
+                    wrapper += f"    result = {func_name}({', '.join(parsed_params)})\n"
+                else:
+                    # Fallback: treat as single string parameter
+                    wrapper += f"    test_input_value = {repr(test_input)}\n"
+                    wrapper += f"    result = {func_name}(test_input_value)\n"
+            else:
+                # Direct value - try to evaluate it
+                wrapper += f"    test_input_str = {repr(test_input)}\n"
+                wrapper += f"    try:\n"
+                wrapper += f"        test_input_value = ast.literal_eval(test_input_str)\n"
+                wrapper += f"    except:\n"
+                wrapper += f"        test_input_value = test_input_str\n"
+                wrapper += f"    result = {func_name}(test_input_value)\n"
             
-            # Print result with boolean conversion to lowercase
+            # Print result with proper formatting
             wrapper += "    if isinstance(result, bool):\n"
             wrapper += "        print('true' if result else 'false')\n"
             wrapper += "    elif isinstance(result, (list, tuple)):\n"
-            wrapper += "        print(str(result).replace(\"'\", '').replace(' ', ''))\n"
+            wrapper += "        print(str(result))\n"
             wrapper += "    else:\n"
             wrapper += "        print(result)\n"
             

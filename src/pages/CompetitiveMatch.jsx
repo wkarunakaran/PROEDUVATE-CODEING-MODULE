@@ -66,6 +66,113 @@ export default function CompetitiveMatch() {
     }
   }, [matchStartTime, matchCompleted]);
 
+  // Check if time has run out and end the game
+  useEffect(() => {
+    if (!match || !matchStartTime || matchCompleted) return;
+
+    const timeLimit = match.time_limit_seconds;
+    const timeRemaining = Math.max(0, timeLimit - timeElapsed);
+
+    if (timeRemaining === 0 && timeElapsed > 0) {
+      console.log("⏰ TIME'S UP! Ending game automatically...");
+      handleTimeExpired();
+    }
+  }, [timeElapsed, match, matchStartTime, matchCompleted]);
+
+  const handleTimeExpired = async () => {
+    // Stop the timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      const currentUserId = localStorage.getItem("userId");
+
+      // Fetch final match state
+      const res = await fetch(`${API_BASE}/competitive/matches/${matchId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch match results");
+      }
+
+      const data = await res.json();
+
+      // Display scoreboard with current standings
+      if (data.players && data.players.length > 2) {
+        // Multiplayer
+        const sortedPlayers = [...data.players].sort((a, b) => {
+          // Sort by problems solved (more is better), then by score (higher is better), then by time (faster is better)
+          const aSolved = a.problems_solved || 0;
+          const bSolved = b.problems_solved || 0;
+          if (aSolved !== bSolved) return bSolved - aSolved;
+          
+          const aScore = a.score || 0;
+          const bScore = b.score || 0;
+          if (aScore !== bScore) return bScore - aScore;
+          
+          return (a.time_elapsed || Infinity) - (b.time_elapsed || Infinity);
+        });
+
+        const currentPlayerRank = sortedPlayers.findIndex(p => p.user_id === currentUserId) + 1;
+        const currentPlayer = sortedPlayers.find(p => p.user_id === currentUserId);
+
+        setFinalResults({
+          type: 'multiplayer',
+          rank: currentPlayerRank,
+          score: currentPlayer?.score || 0,
+          players: sortedPlayers,
+          currentUserId: currentUserId,
+        });
+      } else {
+        // 1v1
+        const player1 = data.player1 || {};
+        const player2 = data.player2 || {};
+
+        const p1Solved = player1.problems_solved || 0;
+        const p2Solved = player2.problems_solved || 0;
+        const p1Score = player1.score || 0;
+        const p2Score = player2.score || 0;
+
+        let p1IsWinner = false;
+        if (p1Solved > p2Solved) p1IsWinner = true;
+        else if (p1Solved === p2Solved && p1Score > p2Score) p1IsWinner = true;
+        else if (p1Solved === p2Solved && p1Score === p2Score && player1.time_elapsed < player2.time_elapsed) p1IsWinner = true;
+
+        const isWinner = currentUserId === player1.user_id ? p1IsWinner : !p1IsWinner;
+
+        setFinalResults({
+          type: '1v1',
+          isWinner: isWinner,
+          ratingChange: 15,
+          currentUserId: currentUserId,
+          player1: {
+            userId: player1.user_id,
+            username: player1.username,
+            isWinner: p1IsWinner,
+            completionTime: player1.time_elapsed,
+            completed: player1.completed || false,
+          },
+          player2: {
+            userId: player2.user_id,
+            username: player2.username,
+            isWinner: !p1IsWinner,
+            completionTime: player2.time_elapsed,
+            completed: player2.completed || false,
+          },
+        });
+      }
+
+      setMatchCompleted(true);
+      console.log("⏰ Game ended due to time expiration - showing final standings");
+    } catch (err) {
+      console.error("Error handling time expiration:", err);
+      alert("Time's up! Failed to load final results.");
+    }
+  };
+
   const fetchMatch = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -586,7 +693,7 @@ export default function CompetitiveMatch() {
 
   const timeLimit = match.time_limit_seconds;
   const timeRemaining = Math.max(0, timeLimit - timeElapsed);
-  const timeProgress = (timeElapsed / timeLimit) * 100;
+  const timeProgress = Math.min(100, (timeElapsed / timeLimit) * 100);
   const gameMode = match.game_mode || "standard";
   const modeInfo = getGameModeInfo();
 
