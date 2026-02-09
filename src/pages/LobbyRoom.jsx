@@ -104,8 +104,9 @@ export default function LobbyRoom() {
       }
 
       const data = await res.json();
-      // Will be redirected by the polling when status changes to active
-      setTimeout(() => navigate(`/competitive/${data.match_id}`), 500);
+      console.log("🚀 Game started! Match ID:", data.match_id);
+      // Redirect to match immediately
+      navigate(`/competitive/${data.match_id}`);
     } catch (err) {
       console.error("Error starting game:", err);
       alert(err.message || "Failed to start game");

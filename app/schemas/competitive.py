@@ -44,6 +44,7 @@ class LobbyPublic(BaseModel):
     max_players: int
     players: List[MatchPlayerState]
     status: str  # waiting, starting, active, completed
+    match_id: Optional[str] = None  # Match ID when game starts
     created_at: datetime
     started_at: Optional[datetime] = None
 
