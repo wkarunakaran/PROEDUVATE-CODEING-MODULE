@@ -676,17 +676,17 @@ export default function CompetitiveMatch() {
           <div className="flex gap-2 mb-2 overflow-x-auto pb-2">
             {players.map((player, idx) => (
               <div
-                key={player.user_id}
-                className={`flex-shrink-0 px-3 py-1 rounded-full text-xs border ${player.user_id === currentUserId
+                key={player?.user_id || idx}
+                className={`flex-shrink-0 px-3 py-1 rounded-full text-xs border ${player?.user_id === currentUserId
                   ? 'border-purple-500 bg-purple-500/20 text-purple-300'
-                  : player.completed
+                  : player?.completed
                     ? 'border-green-500 bg-green-500/20 text-green-300'
                     : 'border-slate-600 bg-slate-800 text-slate-400'
                   }`}
               >
-                {player.rank && <span className="font-bold mr-1">#{player.rank}</span>}
-                {player.username}
-                {player.completed && <span className="ml-1">✓</span>}
+                {player?.rank && <span className="font-bold mr-1">#{player.rank}</span>}
+                {player?.username || `Player ${idx + 1}`}
+                {player?.completed && <span className="ml-1">✓</span>}
               </div>
             ))}
           </div>
@@ -1194,7 +1194,7 @@ export default function CompetitiveMatch() {
                   <div className="space-y-3">
                     {(finalResults.players || []).map((player, idx) => {
                       const rank = idx + 1;
-                      const isCurrentUser = player.user_id === finalResults.currentUserId;
+                      const isCurrentUser = player?.user_id === finalResults.currentUserId;
                       const getMedalIcon = () => {
                         if (rank === 1) return <Trophy size={24} className="text-yellow-400" />;
                         if (rank === 2) return <Medal size={24} className="text-gray-400" />;
@@ -1204,7 +1204,7 @@ export default function CompetitiveMatch() {
 
                       return (
                         <div
-                          key={player.user_id}
+                          key={player?.user_id || idx}
                           className={`flex items-center gap-4 p-4 rounded-lg border-2 ${isCurrentUser
                             ? 'border-purple-500 bg-purple-500/20'
                             : 'border-slate-700 bg-slate-900/50'
@@ -1216,7 +1216,7 @@ export default function CompetitiveMatch() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className={`font-bold ${isCurrentUser ? 'text-purple-300' : 'text-white'}`}>
-                                {player.username}
+                                {player?.username || `Player ${idx + 1}`}
                               </span>
                               {isCurrentUser && (
                                 <span className="text-xs text-purple-400">(You)</span>
