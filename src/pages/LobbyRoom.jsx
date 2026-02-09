@@ -337,36 +337,6 @@ export default function LobbyRoom() {
             <li>Everyone competes to solve the same problem - fastest wins!</li>
           </ol>
         </div>
-
-        {/* Fixed Bottom Action Bar - Always Visible */}
-        <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-lg border-t-2 border-purple-500/50 shadow-2xl p-4 z-50">
-          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row gap-3">
-            {isHost ? (
-              <button
-                onClick={handleStartGame}
-                disabled={playerCount < 2}
-                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold py-4 px-6 rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl flex items-center justify-center gap-2 text-base sm:text-lg"
-              >
-                <Gamepad2 size={20} />
-                {playerCount < 2 ? `⏳ Waiting for players (${playerCount}/${maxPlayers})` : `🚀 Start Game (${playerCount} players ready)`}
-              </button>
-            ) : (
-              <div className="flex-1 bg-yellow-600/30 border-2 border-yellow-500 text-yellow-200 font-bold py-4 px-6 rounded-xl text-center flex items-center justify-center gap-2">
-                <Clock size={20} />
-                <span>Waiting for {lobby.host_username} to start...</span>
-              </div>
-            )}
-            <button
-              onClick={handleLeaveLobby}
-              className="sm:w-44 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-xl flex items-center justify-center gap-2"
-            >
-              🚪 Leave
-            </button>
-          </div>
-        </div>
-
-        {/* Spacer for fixed bottom bar */}
-        <div className="h-24"></div>
       </div>
     </div>
   );
