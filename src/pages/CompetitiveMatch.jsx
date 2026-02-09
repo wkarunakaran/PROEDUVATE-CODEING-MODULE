@@ -251,18 +251,18 @@ export default function CompetitiveMatch() {
               winnerUsername: data.winner_username,
               winnerTime: data.winner_time,
               player1: {
-                userId: match.player1.user_id,
-                username: match.player1.username,
+                userId: match.player1?.user_id || '',
+                username: match.player1?.username || 'Player 1',
                 completed: true,
-                completionTime: data.winner_id === match.player1.user_id ? data.winner_time : data.loser_time,
-                isWinner: data.winner_id === match.player1.user_id
+                completionTime: data.winner_id === match.player1?.user_id ? data.winner_time : data.loser_time,
+                isWinner: data.winner_id === match.player1?.user_id
               },
               player2: {
-                userId: match.player2.user_id,
-                username: match.player2.username,
+                userId: match.player2?.user_id || '',
+                username: match.player2?.username || 'Player 2',
                 completed: true,
-                completionTime: data.winner_id === match.player2.user_id ? data.winner_time : data.loser_time,
-                isWinner: data.winner_id === match.player2.user_id
+                completionTime: data.winner_id === match.player2?.user_id ? data.winner_time : data.loser_time,
+                isWinner: data.winner_id === match.player2?.user_id
               },
               ratingChange: data.rating_change,
               xpBonus: data.xp_bonus,
@@ -582,7 +582,7 @@ export default function CompetitiveMatch() {
                 </span>
               ) : (
                 <span className="text-sm text-slate-400">
-                  {match.player1.username} vs {match.player2?.username || "Waiting..."}
+                  {match.player1?.username || 'Player 1'} vs {match.player2?.username || "Waiting..."}
                 </span>
               )}
             </h1>
@@ -616,26 +616,26 @@ export default function CompetitiveMatch() {
             {/* Player 1 (Current User) */}
             <div className="flex items-center gap-3">
               <div className="w-32 text-xs text-slate-300 font-medium truncate">
-                {match.player1.username}
-                {match.player1.user_id === currentUserId && (
+                {match.player1?.username || 'Player 1'}
+                {match.player1?.user_id === currentUserId && (
                   <span className="ml-1 text-purple-400">(You)</span>
                 )}
               </div>
               <div className="flex-1 bg-slate-700 rounded-full h-2 overflow-hidden relative">
                 <div
-                  className={`h-2 rounded-full transition-all duration-500 ease-out ${match.player1.completed ? 'bg-emerald-500' : 'bg-blue-500'
+                  className={`h-2 rounded-full transition-all duration-500 ease-out ${match.player1?.completed ? 'bg-emerald-500' : 'bg-blue-500'
                     }`}
                   style={{
-                    width: `${Math.max(5, ((match.player1.problems_solved || 0) / (match.total_problems || 5)) * 100)}%`
+                    width: `${Math.max(5, ((match.player1?.problems_solved || 0) / (match.total_problems || 5)) * 100)}%`
                   }}
                 />
               </div>
               <div className="w-20 text-xs text-right">
-                {match.player1.completed ? (
+                {match.player1?.completed ? (
                   <span className="text-emerald-400 font-medium">✓ Done</span>
                 ) : (
                   <span className="text-blue-400">
-                    {match.player1.problems_solved || 0}/{match.total_problems || 5} solved
+                    {match.player1?.problems_solved || 0}/{match.total_problems || 5} solved
                   </span>
                 )}
               </div>
@@ -644,17 +644,17 @@ export default function CompetitiveMatch() {
             {/* Player 2 (Opponent) */}
             <div className="flex items-center gap-3">
               <div className="w-32 text-xs text-slate-300 font-medium truncate">
-                {match.player2.username}
-                {match.player2.user_id === currentUserId && (
+                {match.player2?.username || 'Player 2'}
+                {match.player2?.user_id === currentUserId && (
                   <span className="ml-1 text-purple-400">(You)</span>
                 )}
               </div>
               <div className="flex-1 bg-slate-700 rounded-full h-2 overflow-hidden relative">
                 <div
-                  className={`h-2 rounded-full transition-all duration-500 ease-out ${match.player2.completed ? 'bg-emerald-500' : 'bg-purple-500'
+                  className={`h-2 rounded-full transition-all duration-500 ease-out ${match.player2?.completed ? 'bg-emerald-500' : 'bg-purple-500'
                     }`}
                   style={{
-                    width: `${Math.max(5, ((match.player2.problems_solved || 0) / (match.total_problems || 5)) * 100)}%`
+                    width: `${Math.max(5, ((match.player2?.problems_solved || 0) / (match.total_problems || 5)) * 100)}%`
                   }}
                 />
               </div>
