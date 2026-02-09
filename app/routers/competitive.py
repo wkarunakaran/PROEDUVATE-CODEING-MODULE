@@ -369,31 +369,37 @@ async def create_lobby(
         
         if not problems:
             # Fallback to AI generation if no problems in pool
-            print(f"⚠️ No problems found in pool, falling back to AI generation...")
-            difficulty = random.choice(["easy", "medium", "hard"])
-            problem_data = generate_competitive_problem(difficulty)
+            print(f"⚠️ No problems found in pool, generating 5 problems with AI...")
             
-            difficulty_capitalized = difficulty.capitalize()
-            problem_doc = {
-                "title": problem_data["title"],
-                "description": problem_data["description"],
-                "difficulty": difficulty_capitalized,
-                "testCases": problem_data["testCases"],
-                "examples": problem_data.get("examples", []),
-                "hint": problem_data.get("hint", ""),
-                "starterCode": problem_data.get("starterCode", {}),
-                "topics": ["competitive", "ai-generated"],
-                "created_for_competitive": True,
-                "videoUrl": "",
-                "referenceCode": problem_data.get("referenceCode", {"python": "", "cpp": "", "java": ""}),
-                "buggyCode": {},
-                "explanations": {"approach": [], "complexity": []},
-                "sampleTests": []
-            }
+            selected_problem_ids = []
+            difficulties = ["easy", "easy", "medium", "medium", "hard"]  # Mix of difficulties
             
-            result = await db.problems.insert_one(problem_doc)
-            selected_problem_ids = [str(result.inserted_id)]
-            print(f"✅ Generated 1 problem: {problem_data['title']} (ID: {selected_problem_ids[0]})")
+            for i, difficulty in enumerate(difficulties, 1):
+                print(f"   Generating problem {i}/5 ({difficulty})...")
+                problem_data = generate_competitive_problem(difficulty)
+                
+                difficulty_capitalized = difficulty.capitalize()
+                problem_doc = {
+                    "title": problem_data["title"],
+                    "description": problem_data["description"],
+                    "difficulty": difficulty_capitalized,
+                    "testCases": problem_data["testCases"],
+                    "examples": problem_data.get("examples", []),
+                    "hint": problem_data.get("hint", ""),
+                    "starterCode": problem_data.get("starterCode", {}),
+                    "topics": ["competitive", "ai-generated"],
+                    "created_for_competitive": True,
+                    "competitive_mode": competitive_mode,
+                    "videoUrl": "",
+                    "referenceCode": problem_data.get("referenceCode", {"python": "", "cpp": "", "java": ""}),
+                    "buggyCode": {},
+                    "explanations": {"approach": [], "complexity": []},
+                    "sampleTests": []
+                }
+                
+                result = await db.problems.insert_one(problem_doc)
+                selected_problem_ids.append(str(result.inserted_id))
+                print(f"   ✅ Generated: {problem_data['title']} (ID: {selected_problem_ids[-1]})")
         else:
             # Randomly select 5 problems from pool (or all available if <5)
             num_problems = min(5, len(problems))

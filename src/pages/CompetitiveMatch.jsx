@@ -16,6 +16,7 @@ export default function CompetitiveMatch() {
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);
   const [timeElapsed, setTimeElapsed] = useState(0);
+  const [matchStartTime, setMatchStartTime] = useState(null); // Server timestamp
   const [usedHints, setUsedHints] = useState(false);
   const timerRef = useRef(null);
 
@@ -32,7 +33,6 @@ export default function CompetitiveMatch() {
 
   useEffect(() => {
     fetchMatch();
-    startTimer();
 
     return () => {
       if (timerRef.current) {
@@ -41,11 +41,30 @@ export default function CompetitiveMatch() {
     };
   }, [matchId]);
 
-  const startTimer = () => {
-    timerRef.current = setInterval(() => {
-      setTimeElapsed((prev) => prev + 1);
-    }, 1000);
-  };
+  // Update timer based on server start time
+  useEffect(() => {
+    if (matchStartTime && !matchCompleted) {
+      // Calculate initial elapsed time
+      const startTime = new Date(matchStartTime).getTime();
+      const updateTimer = () => {
+        const now = Date.now();
+        const elapsed = Math.floor((now - startTime) / 1000);
+        setTimeElapsed(elapsed);
+      };
+
+      // Update immediately
+      updateTimer();
+
+      // Then update every second
+      timerRef.current = setInterval(updateTimer, 1000);
+
+      return () => {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+        }
+      };
+    }
+  }, [matchStartTime, matchCompleted]);
 
   const fetchMatch = async () => {
     try {
@@ -65,6 +84,12 @@ export default function CompetitiveMatch() {
       const data = await res.json();
       console.log("Match data:", data);
       setMatch(data);
+      
+      // Set match start time for accurate timer calculation (survives page refresh)
+      if (data.started_at) {
+        setMatchStartTime(data.started_at);
+        console.log("⏰ Match started at:", data.started_at);
+      }
 
       // 2. Determine Correct Problem ID (Multi-problem support)
       let problemIdToFetch = data.problem_id; // Default to legacy single ID
@@ -227,6 +252,8 @@ export default function CompetitiveMatch() {
         if (data.winner_id || data.winners) {
           // Match completed - store results and show leaderboard
           const currentUserId = localStorage.getItem("userId");
+          console.log("🏆 MATCH COMPLETED! Showing scoreboard...");
+          console.log("📊 Completion data:", data);
 
           if (data.winners) {
             // Multiplayer match completed
@@ -240,6 +267,7 @@ export default function CompetitiveMatch() {
               players: data.players || players,
               currentUserId
             });
+            console.log("🎮 Multiplayer scoreboard set");
           } else {
             // 1v1 match completed
             const isWinner = data.winner_id === currentUserId;
@@ -268,12 +296,14 @@ export default function CompetitiveMatch() {
               xpBonus: data.xp_bonus,
               currentUserId
             });
+            console.log("🎮 1v1 scoreboard set");
           }
 
           setMatchCompleted(true);
+          console.log("✅ matchCompleted set to TRUE - scoreboard should display now!");
 
-          // Still redirect after 5 seconds
-          setTimeout(() => navigate("/competitive"), 5000);
+          // Scoreboard stays visible until user clicks "Back to Competitive"
+          // No auto-redirect - user controls when to leave
 
           if (timerRef.current) {
             clearInterval(timerRef.current);
@@ -1073,6 +1103,10 @@ export default function CompetitiveMatch() {
       {matchCompleted && finalResults && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-gradient-to-br from-slate-900 via-purple-900/30 to-slate-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border-2 border-purple-500/30">
+            {(() => {
+              console.log("🎨 Rendering scoreboard overlay! Type:", finalResults.type);
+              return null;
+            })()}
             {finalResults.type === '1v1' ? (
               /* 1v1 Leaderboard */
               <div className="p-8">
@@ -1169,12 +1203,9 @@ export default function CompetitiveMatch() {
                     onClick={() => navigate("/competitive")}
                     className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-3 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all"
                   >
-                    Back to Competitive
+                    🏠 Return to Lobby
                   </button>
                 </div>
-                <p className="text-center text-xs text-slate-400 mt-4">
-                  Redirecting in 5 seconds...
-                </p>
               </div>
             ) : (
               /* Multiplayer Leaderboard */
@@ -1254,12 +1285,9 @@ export default function CompetitiveMatch() {
                     onClick={() => navigate("/competitive")}
                     className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-3 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all"
                   >
-                    Back to Competitive
+                    🏠 Return to Lobby
                   </button>
                 </div>
-                <p className="text-center text-xs text-slate-400 mt-4">
-                  Redirecting in 5 seconds...
-                </p>
               </div>
             )}
           </div>
