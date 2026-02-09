@@ -70,7 +70,7 @@ export default function CompetitiveMatch() {
   useEffect(() => {
     if (!match || !matchStartTime || matchCompleted) return;
 
-    const timeLimit = match.time_limit_seconds || 900; // Default 25 minutes
+    const timeLimit = match.time_limit_seconds || 900; // Default 15 minutes
     
     // Safety: Ensure we have a valid time limit
     if (timeLimit <= 0) {
@@ -716,7 +716,7 @@ export default function CompetitiveMatch() {
     );
   }
 
-  const timeLimit = match.time_limit_seconds || 1500; // Default 25 minutes  
+  const timeLimit = match.time_limit_seconds || 900; // Default 15 minutes  
   const timeRemaining = Math.max(0, timeLimit - timeElapsed);
   const timeProgress = Math.min(100, (timeElapsed / timeLimit) * 100);
   const gameMode = match.game_mode || "standard";
