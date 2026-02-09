@@ -323,7 +323,7 @@ export default function CompetitiveMatch() {
         const sampleInput = problem.examples?.[0]?.input || problem.testCases?.[0]?.input || "";
         const expectedOutput = problem.examples?.[0]?.output || problem.testCases?.[0]?.expected || "";
 
-        const res = await fetch(`${API_BASE}/execute`, {
+        const res = await fetch(`${API_BASE}/execute/run`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -332,7 +332,7 @@ export default function CompetitiveMatch() {
           body: JSON.stringify({
             code: arrangedCode,
             language: language,
-            input: sampleInput,
+            test_input: sampleInput,
           }),
         });
 
@@ -402,7 +402,7 @@ export default function CompetitiveMatch() {
       const sampleInput = problem.examples?.[0]?.input || problem.testCases?.[0]?.input || "";
       const expectedOutput = problem.examples?.[0]?.output || problem.testCases?.[0]?.expected || "";
 
-      const res = await fetch(`${API_BASE}/execute`, {
+      const res = await fetch(`${API_BASE}/execute/run`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -411,7 +411,7 @@ export default function CompetitiveMatch() {
         body: JSON.stringify({
           code,
           language,
-          input: sampleInput,
+          test_input: sampleInput,
         }),
       });
 
