@@ -41,18 +41,22 @@ class CodeExecutor:
             start_time = time.time()
             
             if language.lower() == "python":
+                # Auto-wrap function definitions to handle input/output
+                wrapped_code = self._wrap_python_code(code, test_input)
+                
                 # Create temporary Python file
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
-                    f.write(code)
+                    f.write(wrapped_code)
                     temp_file = f.name
                 
                 print(f"📝 Temp file: {temp_file}")
+                print(f"📦 Wrapped code preview: {wrapped_code[:200]}...")
                 
                 try:
                     # Execute Python code
                     result = subprocess.run(
                         ['python', temp_file],
-                        input=test_input,
+                        input="",  # Input is embedded in wrapped code
                         capture_output=True,
                         text=True,
                         timeout=timeout
@@ -108,6 +112,47 @@ class CodeExecutor:
                 "execution_time": 0
             }
     
+    def _wrap_python_code(self, code: str, test_input: str) -> str:
+        """
+        Wrap Python code to automatically handle function execution.
+        If code defines a function but doesn't call it, add a main block.
+        """
+        import re
+        
+        # Check if code defines a function (def function_name(...):)
+        function_match = re.search(r'def\s+(\w+)\s*\(([^)]*)\)', code)
+        
+        if function_match and 'if __name__' not in code:
+            func_name = function_match.group(1)
+            params = function_match.group(2).strip()
+            
+            # Build wrapper
+            wrapper = f"{code}\n\n"
+            wrapper += "# Auto-generated test wrapper\n"
+            wrapper += "if __name__ == '__main__':\n"
+            wrapper += f"    test_input = {repr(test_input)}\n"
+            
+            # Parse input and call function
+            if params:
+                # Single parameter - pass test_input directly
+                param_name = params.split(',')[0].split(':')[0].split('=')[0].strip()
+                wrapper += f"    result = {func_name}(test_input)\n"
+            else:
+                wrapper += f"    result = {func_name}()\n"
+            
+            # Print result with boolean conversion to lowercase
+            wrapper += "    if isinstance(result, bool):\n"
+            wrapper += "        print('true' if result else 'false')\n"
+            wrapper += "    elif isinstance(result, (list, tuple)):\n"
+            wrapper += "        print(str(result).replace(\"'\", '').replace(' ', ''))\n"
+            wrapper += "    else:\n"
+            wrapper += "        print(result)\n"
+            
+            return wrapper
+        
+        # If no function or already has main block, return as-is
+        return code
+
     async def execute_code(
         self, 
         code: str, 
