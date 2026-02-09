@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
 from contextlib import asynccontextmanager
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import get_settings
 from app.db.mongo import connect_to_mongo, close_mongo_connection
@@ -27,30 +28,81 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="codoAI Backend", version="1.0.0", lifespan=lifespan)
 
-# CORS configuration
-# Temporarily allow all origins to debug dev-tunnel CORS issues.
-# Switch back to `settings.cors_origins` in production.
+# Custom middleware to handle dev tunnels CORS properly
+class DevTunnelCORSMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Get origin from request
+        origin = request.headers.get("origin", "*")
+        
+        # Handle preflight OPTIONS requests immediately
+        if request.method == "OPTIONS":
+            return JSONResponse(
+                content="OK",
+                status_code=200,
+                headers={
+                    "Access-Control-Allow-Origin": origin if origin else "*",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, User-Agent, DNT, Cache-Control, X-Mx-ReqToken, Keep-Alive, X-Requested-With, If-Modified-Since",
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Max-Age": "86400",
+                    "Vary": "Origin",
+                }
+            )
+        
+        # Process actual request
+        response = await call_next(request)
+        
+        # Force CORS headers on all responses
+        response.headers["Access-Control-Allow-Origin"] = origin if origin else "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Accept, Origin, User-Agent, DNT, Cache-Control, X-Mx-ReqToken, Keep-Alive, X-Requested-With, If-Modified-Since"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Vary"] = "Origin"
+        
+        return response
+
+# Add custom CORS middleware first
+app.add_middleware(DevTunnelCORSMiddleware)
+
+# CORS configuration - Keep for additional compatibility
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TEMPORARY: allow all origins
+    allow_origins=["*"],  # Allow all origins for dev tunnels
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Exception handlers to ensure CORS headers are present even on errors
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
+    origin = request.headers.get("origin", "*")
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+            "Vary": "Origin",
+        }
     )
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
+    origin = request.headers.get("origin", "*")
     return JSONResponse(
         status_code=500,
         content={"detail": f"Internal server error: {str(exc)}"},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+            "Vary": "Origin",
+        }
     )
 
 app.include_router(auth.router)
@@ -61,7 +113,30 @@ app.include_router(leaderboard.router)
 app.include_router(execute.router)
 app.include_router(competitive.router)
 
+# Root endpoint
+@app.get("/")
+async def root():
+    return {
+        "message": "codoAI Backend API",
+        "version": "1.0.0",
+        "status": "running",
+        "cors_enabled": True
+    }
+
 # Test endpoint for CORS
 @app.get("/test")
 async def test_endpoint():
-    return {"message": "CORS test successful"}
+    return {"message": "CORS test successful", "timestamp": "2026-02-09"}
+
+# OPTIONS endpoint for manual CORS testing
+@app.options("/{full_path:path}")
+async def options_handler(request: Request):
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Credentials": "true",
+        }
+    )

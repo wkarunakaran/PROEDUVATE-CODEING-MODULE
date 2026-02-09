@@ -95,24 +95,47 @@ Classic competitive programming - solve problems from scratch as fast as possibl
 Create comprehensive test cases for a given problem. Quality and edge case coverage determine your score.
 
 ### 🎮 Multiplayer Lobbies
-- No setup needed - problems are auto-generated!
-# Just start the backend and frontend, then play!
-
-# Start backend4. Try creating a new Code Shuffle match
+- Up to 15 players per match
+- Unique 6-character Game IDs for easy joining
+- Real-time player list updates
+- Host controls when game starts
 
 **Documentation:**
 - 📘 [Code Shuffle Guide](CODE_SHUFFLE_GUIDE.md) - Complete guide with strategies
 - 🎨 [Visual Demo](CODE_SHUFFLE_VISUAL_DEMO.md) - See how it looks and works
 - ⚙️ [Implementation Details](CODE_SHUFFLE_IMPLEMENTATION.md) - Technical documentation
 - 🔧 [Troubleshooting](CODE_SHUFFLE_FIX.md) - Fix common issues
+- 🎮 [Multiplayer Quick Start](MULTIPLAYER_QUICKSTART.md) - Get started with multiplayer
+- 🔧 [Lobby Join Troubleshooting](LOBBY_JOIN_TROUBLESHOOTING.md) - Fix lobby join issues
 
 For other game modes, see [COMPETITIVE_MODE.md](COMPETITIVE_MODE.md)
 
 ## Running the Backend
 
 Standard command:
-- `POST /problems` (admin only)
-- `POST /attempts`
-- `GET /leaderboard/problem/{problem_id}`
+```bash
+uvicorn app.main:app --reload
+```
 
+From workspace root with virtual environment:
+```bash
 cd PROEDUVATE-CODEING-MODULE; ..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+```
+
+## Testing
+
+### Test Lobby Join Functionality
+If players cannot join lobbies, run the diagnostic script:
+
+```bash
+python test_lobby_join.py
+```
+
+This will:
+- Test authentication
+- Create a lobby
+- Test joining the lobby
+- Verify multiplayer functionality
+- Provide detailed error diagnosis
+
+See [LOBBY_JOIN_TROUBLESHOOTING.md](LOBBY_JOIN_TROUBLESHOOTING.md) for common issues.

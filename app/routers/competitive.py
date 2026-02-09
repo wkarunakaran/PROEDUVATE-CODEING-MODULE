@@ -515,6 +515,15 @@ async def join_lobby(
     """Join an existing lobby using game ID"""
     db = get_database()
     
+    print(f"🎮 Join lobby request: game_id={join_req.game_id}, user={current_user['username']}")
+    
+    # Find lobby by game_id (check all statuses first for debugging)
+    all_lobbies = await db.lobbies.find_one({"game_id": join_req.game_id.upper()})
+    if all_lobbies:
+        print(f"   Found lobby with status: {all_lobbies.get('status')}")
+    else:
+        print(f"   ❌ No lobby found with game_id: {join_req.game_id.upper()}")
+    
     # Find lobby by game_id
     lobby = await db.lobbies.find_one({
         "game_id": join_req.game_id.upper(),
@@ -522,7 +531,17 @@ async def join_lobby(
     })
     
     if not lobby:
-        raise HTTPException(status_code=404, detail="Lobby not found or already started")
+        # Provide more specific error messages
+        if all_lobbies:
+            status = all_lobbies.get('status')
+            if status == "active":
+                raise HTTPException(status_code=400, detail="Game has already started. Cannot join.")
+            elif status == "completed":
+                raise HTTPException(status_code=400, detail="Game has already ended. Cannot join.")
+            else:
+                raise HTTPException(status_code=400, detail=f"Lobby is not accepting players (status: {status})")
+        else:
+            raise HTTPException(status_code=404, detail="Lobby not found. Please check the Game ID.")
     
     # Check if lobby is full
     current_players = len(lobby.get("players", []))
@@ -587,12 +606,16 @@ async def list_lobbies(
     if game_mode:
         query["game_mode"] = game_mode
     
+    print(f"📋 Listing lobbies with query: {query}")
+    
     cursor = db.lobbies.find(query).sort("created_at", -1).limit(50)
     results = []
     
     async for doc in cursor:
         doc["id"] = str(doc["_id"])
         results.append(LobbyPublic(**doc))
+    
+    print(f"   Found {len(results)} lobbies")
     
     return results
 
@@ -604,9 +627,14 @@ async def get_lobby(
     """Get details of a specific lobby by game ID"""
     db = get_database()
     
+    print(f"🔍 Fetching lobby: game_id={game_id}, user={current_user['username']}")
+    
     lobby = await db.lobbies.find_one({"game_id": game_id.upper()})
     if not lobby:
+        print(f"   ❌ Lobby not found: {game_id}")
         raise HTTPException(status_code=404, detail="Lobby not found")
+    
+    print(f"   ✅ Lobby found: {lobby.get('lobby_name')}, status={lobby.get('status')}, players={len(lobby.get('players', []))}")
     
     lobby["id"] = str(lobby["_id"])
     return LobbyPublic(**lobby)

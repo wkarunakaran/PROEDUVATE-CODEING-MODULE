@@ -9,11 +9,37 @@ export default function LobbyRoom() {
   const [lobby, setLobby] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUsername, setCurrentUsername] = useState(null);
   const [copySuccess, setCopySuccess] = useState(false);
 
   useEffect(() => {
     const userId = localStorage.getItem("userId");
-    setCurrentUserId(userId);
+    const username = localStorage.getItem("username");
+    console.log("👤 Current User:", { userId, username });
+    
+    // If userId is missing, fetch it
+    if (!userId) {
+      console.log("⚠️ userId not in localStorage, fetching from API...");
+      const token = localStorage.getItem("token");
+      if (token) {
+        fetch(`${API_BASE}/users/me`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        })
+        .then(res => res.json())
+        .then(data => {
+          console.log("✅ Fetched user data:", data);
+          localStorage.setItem("userId", data.id);
+          localStorage.setItem("username", data.username);
+          setCurrentUserId(data.id);
+          setCurrentUsername(data.username);
+        })
+        .catch(err => console.error("❌ Failed to fetch user:", err));
+      }
+    } else {
+      setCurrentUserId(userId);
+      setCurrentUsername(username);
+    }
+    
     fetchLobby();
 
     // Poll for updates every 2 seconds
@@ -24,20 +50,36 @@ export default function LobbyRoom() {
   const fetchLobby = async () => {
     try {
       const token = localStorage.getItem("token");
+      if (!token) {
+        console.error("❌ No authentication token found");
+        alert("You must be logged in to view this lobby");
+        navigate("/login");
+        return;
+      }
+      
+      console.log("🔄 Fetching lobby:", gameId);
+      
       const res = await fetch(`${API_BASE}/competitive/lobby/${gameId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          alert("Your session has expired. Please login again.");
+          navigate("/login");
+          return;
+        }
         throw new Error("Lobby not found");
       }
 
       const data = await res.json();
+      console.log("✅ Lobby data received:", data.game_id, "Players:", data.players.length);
       setLobby(data);
       setLoading(false);
 
       // If game started, navigate to match
       if (data.status === "active" && data.match_id) {
+        console.log("🎮 Game started! Redirecting to match:", data.match_id);
         navigate(`/competitive/${data.match_id}`);
       }
     } catch (err) {
@@ -106,9 +148,18 @@ export default function LobbyRoom() {
     );
   }
 
-  const isHost = lobby.host_id === currentUserId;
+  const isHost = lobby.host_id === currentUserId || lobby.host_username === currentUsername;
   const playerCount = lobby.players.length;
   const maxPlayers = lobby.max_players;
+
+  // Debug host check
+  console.log("🔍 Host Check:", {
+    lobby_host_id: lobby.host_id,
+    lobby_host_username: lobby.host_username,
+    current_user_id: currentUserId,
+    current_username: currentUsername,
+    isHost: isHost
+  });
 
   const gameModeIcons = {
     standard: <Zap size={32} />,
@@ -181,27 +232,49 @@ export default function LobbyRoom() {
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-4">
-            {isHost ? (
+          {/* Action Buttons - Always Visible */}
+          <div className="mt-8 pt-6 border-t border-white/20">
+            <div className="flex flex-col sm:flex-row gap-4">
+              {isHost ? (
+                <button
+                  onClick={handleStartGame}
+                  disabled={playerCount < 2}
+                  className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold py-5 px-8 rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl text-lg flex items-center justify-center gap-3"
+                >
+                  <Gamepad2 size={24} />
+                  {playerCount < 2 ? "⏳ Need at least 2 players to start" : "🚀 Start Game Now!"}
+                </button>
+              ) : (
+                <div className="flex-1 bg-yellow-600/20 border-2 border-yellow-600 text-yellow-300 font-bold py-5 px-8 rounded-xl text-center text-lg flex items-center justify-center gap-3">
+                  <Clock size={24} />
+                  Waiting for host to start the game...
+                </div>
+              )}
               <button
-                onClick={handleStartGame}
-                disabled={playerCount < 2}
-                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold py-4 rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                onClick={handleLeaveLobby}
+                className="sm:w-48 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-5 px-8 rounded-xl transition-all shadow-xl text-lg flex items-center justify-center gap-2"
               >
-                {playerCount < 2 ? "Need at least 2 players" : "Start Game"}
+                <span>🚪</span> Leave Lobby
               </button>
-            ) : (
-              <div className="flex-1 bg-yellow-600/20 border-2 border-yellow-600 text-yellow-300 font-semibold py-4 rounded-lg text-center">
-                Waiting for host to start...
+            </div>
+            
+            {/* Host instructions */}
+            {isHost && playerCount >= 2 && (
+              <div className="mt-4 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                <p className="text-green-300 text-center font-semibold">
+                  ✅ Ready to start! All players are in the lobby. Click "Start Game Now!" when ready.
+                </p>
               </div>
             )}
-            <button
-              onClick={handleLeaveLobby}
-              className="px-8 py-4 bg-red-600/20 border-2 border-red-600 text-red-300 font-semibold rounded-lg hover:bg-red-600/30 transition-all"
-            >
-              Leave
-            </button>
+            
+            {/* Non-host info */}
+            {!isHost && (
+              <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <p className="text-blue-300 text-center">
+                  👑 <span className="font-semibold">{lobby.host_username}</span> is the host and will start the game
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -264,6 +337,36 @@ export default function LobbyRoom() {
             <li>Everyone competes to solve the same problem - fastest wins!</li>
           </ol>
         </div>
+
+        {/* Fixed Bottom Action Bar - Always Visible */}
+        <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-lg border-t-2 border-purple-500/50 shadow-2xl p-4 z-50">
+          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row gap-3">
+            {isHost ? (
+              <button
+                onClick={handleStartGame}
+                disabled={playerCount < 2}
+                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold py-4 px-6 rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl flex items-center justify-center gap-2 text-base sm:text-lg"
+              >
+                <Gamepad2 size={20} />
+                {playerCount < 2 ? `⏳ Waiting for players (${playerCount}/${maxPlayers})` : `🚀 Start Game (${playerCount} players ready)`}
+              </button>
+            ) : (
+              <div className="flex-1 bg-yellow-600/30 border-2 border-yellow-500 text-yellow-200 font-bold py-4 px-6 rounded-xl text-center flex items-center justify-center gap-2">
+                <Clock size={20} />
+                <span>Waiting for {lobby.host_username} to start...</span>
+              </div>
+            )}
+            <button
+              onClick={handleLeaveLobby}
+              className="sm:w-44 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-xl transition-all shadow-xl flex items-center justify-center gap-2"
+            >
+              🚪 Leave
+            </button>
+          </div>
+        </div>
+
+        {/* Spacer for fixed bottom bar */}
+        <div className="h-24"></div>
       </div>
     </div>
   );

@@ -144,6 +144,13 @@ export default function App() {
 
         if (response.ok) {
           const userData = await response.json();
+          
+          // Store userId and username in localStorage for lobby/match checks
+          localStorage.setItem("userId", userData.id);
+          localStorage.setItem("username", userData.username);
+          
+          console.log("✅ User logged in:", { id: userData.id, username: userData.username });
+          
           setUser({
             id: userData.id,
             name: userData.username,
@@ -160,8 +167,11 @@ export default function App() {
     }
 
     // Fallback to basic user object if API fails
+    const fallbackUsername = username.trim();
+    localStorage.setItem("username", fallbackUsername);
+    
     setUser({
-      name: username.trim(),
+      name: fallbackUsername,
       isAdmin,
       preferredLanguage: "python",
       level: 1,
@@ -172,6 +182,12 @@ export default function App() {
   const handleLogout = () => {
     setUser(null);
     setAttempts({});
+    
+    // Clear user session data
+    localStorage.removeItem("token");
+    localStorage.removeItem("userId");
+    localStorage.removeItem("username");
+    
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {

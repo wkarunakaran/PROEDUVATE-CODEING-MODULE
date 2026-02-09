@@ -15,9 +15,18 @@ export default function LobbyJoin() {
       return;
     }
 
+    // Check authentication first
+    const token = localStorage.getItem("token");
+    if (!token) {
+      alert("You must be logged in to join a lobby. Please login first.");
+      navigate("/login");
+      return;
+    }
+
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
+      console.log("🎮 Attempting to join lobby:", gameId.toUpperCase().trim());
+      
       const res = await fetch(`${API_BASE}/competitive/lobby/join`, {
         method: "POST",
         headers: {
@@ -29,10 +38,21 @@ export default function LobbyJoin() {
 
       if (!res.ok) {
         const error = await res.json();
+        console.error("❌ Join error:", error);
+        
+        // Handle specific error cases
+        if (res.status === 401) {
+          alert("Your session has expired. Please login again.");
+          navigate("/login");
+          return;
+        }
+        
         throw new Error(error.detail || "Failed to join lobby");
       }
 
       const data = await res.json();
+      console.log("✅ Successfully joined lobby:", data.lobby.game_id);
+      
       // Navigate to lobby room
       navigate(`/lobby/${data.lobby.game_id}`);
     } catch (err) {
