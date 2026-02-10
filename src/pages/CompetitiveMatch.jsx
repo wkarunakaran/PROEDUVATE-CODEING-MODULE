@@ -44,12 +44,17 @@ export default function CompetitiveMatch() {
   // Update timer based on server start time
   useEffect(() => {
     if (matchStartTime && !matchCompleted) {
-      // Calculate initial elapsed time
-      const startTime = new Date(matchStartTime).getTime();
+      // Parse server timestamp as UTC (server sends naive UTC datetime without 'Z')
+      const utcTimestamp = matchStartTime.endsWith('Z') || matchStartTime.includes('+') 
+        ? matchStartTime 
+        : matchStartTime + 'Z';
+      const startTime = new Date(utcTimestamp).getTime();
+      
       const updateTimer = () => {
         const now = Date.now();
         const elapsed = Math.floor((now - startTime) / 1000);
-        setTimeElapsed(elapsed);
+        // Clamp elapsed to 0 minimum (handles clock skew)
+        setTimeElapsed(Math.max(0, elapsed));
       };
 
       // Update immediately
@@ -631,7 +636,7 @@ export default function CompetitiveMatch() {
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   const handleLineMove = (fromIndex, direction) => {

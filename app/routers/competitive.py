@@ -1536,7 +1536,7 @@ async def find_match(
         # Join existing match
         match_id = str(waiting_match["_id"])
         
-        # Update player2 if not set
+        # Update player2 and auto-start the match
         if not waiting_match.get("player2"):
             await db.matches.update_one(
                 {"_id": waiting_match["_id"]},
@@ -1554,7 +1554,9 @@ async def find_match(
                             "current_problem_index": 0,
                             "problems_solved": 0,
                             "submissions": []
-                        }
+                        },
+                        "status": "active",
+                        "started_at": datetime.utcnow()
                     }
                 }
             )

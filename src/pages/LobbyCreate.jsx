@@ -8,7 +8,7 @@ export default function LobbyCreate() {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     game_mode: "standard",
-    time_limit_seconds: 1800,
+    time_limit_seconds: 900,
     max_players: 5,
     lobby_name: ""
   });
