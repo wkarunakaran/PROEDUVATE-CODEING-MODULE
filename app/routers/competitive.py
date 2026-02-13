@@ -356,7 +356,7 @@ async def create_lobby(
     competitive_mode = mode_mapping.get(lobby_in.game_mode, "standard")
     
     # Select a random problem from the pool for this game mode
-    print(f"🎲 Selecting 5 random problems for {lobby_in.game_mode} mode...")
+    print(f"🎲 Selecting 1 random problem for {lobby_in.game_mode} mode...")
     
     try:
         # Find all problems for this game mode
@@ -369,45 +369,36 @@ async def create_lobby(
         
         if not problems:
             # Fallback to AI generation if no problems in pool
-            print(f"⚠️ No problems found in pool, generating 5 problems with AI...")
+            print(f"⚠️ No problems found in pool, generating 1 problem with AI...")
             
-            selected_problem_ids = []
-            difficulties = ["easy", "easy", "medium", "medium", "hard"]  # Mix of difficulties
+            problem_data = generate_competitive_problem("medium")
             
-            for i, difficulty in enumerate(difficulties, 1):
-                print(f"   Generating problem {i}/5 ({difficulty})...")
-                problem_data = generate_competitive_problem(difficulty)
-                
-                difficulty_capitalized = difficulty.capitalize()
-                problem_doc = {
-                    "title": problem_data["title"],
-                    "description": problem_data["description"],
-                    "difficulty": difficulty_capitalized,
-                    "testCases": problem_data["testCases"],
-                    "examples": problem_data.get("examples", []),
-                    "hint": problem_data.get("hint", ""),
-                    "starterCode": problem_data.get("starterCode", {}),
-                    "topics": ["competitive", "ai-generated"],
-                    "created_for_competitive": True,
-                    "competitive_mode": competitive_mode,
-                    "videoUrl": "",
-                    "referenceCode": problem_data.get("referenceCode", {"python": "", "cpp": "", "java": ""}),
-                    "buggyCode": {},
-                    "explanations": {"approach": [], "complexity": []},
-                    "sampleTests": []
-                }
-                
-                result = await db.problems.insert_one(problem_doc)
-                selected_problem_ids.append(str(result.inserted_id))
-                print(f"   ✅ Generated: {problem_data['title']} (ID: {selected_problem_ids[-1]})")
+            problem_doc = {
+                "title": problem_data["title"],
+                "description": problem_data["description"],
+                "difficulty": "Medium",
+                "testCases": problem_data["testCases"],
+                "examples": problem_data.get("examples", []),
+                "hint": problem_data.get("hint", ""),
+                "starterCode": problem_data.get("starterCode", {}),
+                "topics": ["competitive", "ai-generated"],
+                "created_for_competitive": True,
+                "competitive_mode": competitive_mode,
+                "videoUrl": "",
+                "referenceCode": problem_data.get("referenceCode", {"python": "", "cpp": "", "java": ""}),
+                "buggyCode": {},
+                "explanations": {"approach": [], "complexity": []},
+                "sampleTests": []
+            }
+            
+            result = await db.problems.insert_one(problem_doc)
+            selected_problem_ids = [str(result.inserted_id)]
+            print(f"   ✅ Generated: {problem_data['title']} (ID: {selected_problem_ids[0]})")
         else:
-            # Randomly select 5 problems from pool (or all available if <5)
-            num_problems = min(5, len(problems))
-            selected_problems = random.sample(problems, num_problems)
-            selected_problem_ids = [str(p["_id"]) for p in selected_problems]
-            print(f"✅ Selected {num_problems} problems:")
-            for i, p in enumerate(selected_problems, 1):
-                print(f"   {i}. {p['title']} ({p.get('difficulty', 'Unknown')})")
+            # Randomly select 1 problem from pool
+            selected_problem = random.choice(problems)
+            selected_problem_ids = [str(selected_problem["_id"])]
+            print(f"✅ Selected problem: {selected_problem['title']} ({selected_problem.get('difficulty', 'Unknown')})")
             
     except Exception as gen_error:
         print(f"❌ Error selecting problems: {str(gen_error)}")
@@ -491,16 +482,16 @@ async def create_lobby(
         "lobby_name": lobby_in.lobby_name or f"{current_user['username']}'s Game",
         "host_id": current_user["id"],
         "host_username": current_user["username"],
-        "problem_id": lobby_in.problem_id,  # Legacy field (first problem)
-        "problem_ids": selected_problem_ids,  # Array of all problems
-        "total_problems": len(selected_problem_ids),
+        "problem_id": lobby_in.problem_id,
+        "problem_ids": selected_problem_ids,
+        "total_problems": 1,  # Single problem only
         "game_mode": lobby_in.game_mode,
         "time_limit_seconds": lobby_in.time_limit_seconds,
         "max_players": lobby_in.max_players,
         "players": [host_player],
         "buggy_code": buggy_code_content,
-        "shuffled_lines": shuffled_lines,  # Store at lobby level for consistency
-        "status": "waiting",  # waiting, starting, active, completed
+        "shuffled_lines": shuffled_lines,
+        "status": "waiting",
         "created_at": datetime.utcnow(),
         "started_at": None,
         "completed_at": None,
@@ -673,11 +664,13 @@ async def start_lobby(
     match_doc = {
         "game_id": game_id.upper(),
         "problem_id": lobby["problem_id"],
+        "problem_ids": lobby.get("problem_ids", [lobby["problem_id"]]),
+        "total_problems": lobby.get("total_problems", 1),
         "game_mode": lobby["game_mode"],
         "buggy_code": lobby.get("buggy_code"),
         "host_id": lobby["host_id"],
         "max_players": lobby["max_players"],
-        "players": lobby["players"],
+        "players": [{**p, "score": 0} for p in lobby["players"]],  # Reset all scores to 0
         "time_limit_seconds": lobby["time_limit_seconds"],
         "status": "active",
         "winner_id": None,
@@ -1155,12 +1148,6 @@ async def submit_solution(
     # Calculate time elapsed
     time_elapsed = (datetime.utcnow() - match["started_at"]).total_seconds()
     
-    # Calculate final score with time bonus
-    time_limit = match.get("time_limit_seconds", 1800)
-    time_ratio = min(time_elapsed / time_limit, 1.0)
-    time_bonus = int((1 - time_ratio) * 50)  # Up to 50 bonus points for speed
-    final_score = score + time_bonus
-    
     # Update player submission
     if is_multiplayer:
         # Multi-problem race: Increment progress
@@ -1171,7 +1158,7 @@ async def submit_solution(
         submission_record = {
             "problem_id": current_problem_id,
             "time": time_elapsed,
-            "score": final_score,
+            "score": 0,  # Will be set later based on rank
             "passed": True
         }
         
@@ -1180,13 +1167,13 @@ async def submit_solution(
             f"players.{player_index}.code": submission.code,
             f"players.{player_index}.time_elapsed": time_elapsed,
             f"players.{player_index}.submission_time": datetime.utcnow(),
-            f"players.{player_index}.score": final_score,
             f"players.{player_index}.current_problem_index": new_problem_index,
-            f"players.{player_index}.problems_solved": new_problems_solved
+            f"players.{player_index}.problems_solved": new_problems_solved,
+            f"players.{player_index}.score": 0  # Reset score, will be set by rank later
         }
         
-        # Only mark as completed if all problems solved
-        if new_problem_index >= total_problems:
+        # Only mark as completed if all problems solved (which is just 1 problem now)
+        if new_problem_index >= 1:
             update_data[f"players.{player_index}.completed"] = True
         
         if game_mode == "code_shuffle":
@@ -1209,20 +1196,30 @@ async def submit_solution(
         all_completed = all(p.get("completed", False) for p in updated_match.get("players", []))
         
         if all_completed:
-            # Rank players by score (higher is better), then by time (faster is better)
+            # Rank players by completion time (faster completion is better)
             players_with_rank = sorted(
                 updated_match["players"],
-                key=lambda p: (-p.get("score", 0), p.get("time_elapsed", float('inf')))
+                key=lambda p: p.get("time_elapsed", float('inf'))
             )
             
-            # Assign ranks and update
-            for rank, player in enumerate(players_with_rank, 1):
+            print(f"🏆 All players completed! Calculating final rankings:")
+            for i, p in enumerate(players_with_rank, 1):
+                print(f"   Rank {i}: {p['username']} - Time: {p.get('time_elapsed', 0):.2f}s")
+            
+            # Calculate points: 1st = 100, 2nd = 75, 3rd = 60, 4th = 40, rest = 20
+            base_points = [100, 75, 60, 40]
+
+            # Assign ranks, points and update (fastest gets rank 1)
+            for i, player in enumerate(players_with_rank):
+                rank = i + 1
+                points = base_points[rank - 1] if rank <= len(base_points) else 20
+                print(f"   Assigning {points} points to {player['username']} (Rank {rank})")
                 await db.matches.update_one(
                     {
                         "_id": match_oid,
                         "players.user_id": player["user_id"]
                     },
-                    {"$set": {"players.$.rank": rank}}
+                    {"$set": {"players.$.rank": rank, "players.$.score": points}}
                 )
             
             # Get top 3 winners
@@ -1258,49 +1255,34 @@ async def submit_solution(
                         }
                     )
             
+            # Get current player's rank and score
+            current_rank = next(i + 1 for i, p in enumerate(players_with_rank) if p["user_id"] == user_id)
+            current_score = base_points[current_rank - 1] if current_rank <= len(base_points) else 20
+
+            # Build response with correctly ranked and scored players
+            response_players = []
+            for player in players_with_rank:
+                player_rank = next(i + 1 for i, p in enumerate(players_with_rank) if p["user_id"] == player["user_id"])
+                player_score = base_points[player_rank - 1] if player_rank <= len(base_points) else 20
+                response_players.append({
+                    **player,
+                    "rank": player_rank,
+                    "score": player_score
+                })
+
             return {
                 "message": "Match completed!",
-                "rank": next(i + 1 for i, p in enumerate(players_with_rank) if p["user_id"] == user_id),
+                "rank": current_rank,
                 "winners": [p["username"] for p in players_with_rank[:3]],
-                "final_score": final_score
+                "final_score": current_score,
+                "players": response_players
             }
         else:
-            # Not all players completed yet
-            # Check if current player has more problems to solve
-            if new_problem_index < total_problems:
-                # Get next problem for this player
-                next_problem_id = problem_ids[new_problem_index]
-                next_problem = await db.problems.find_one({"_id": ObjectId(next_problem_id)})
-                
-                if next_problem:
-                    # Convert ObjectId to string for JSON serialization
-                    next_problem["_id"] = str(next_problem["_id"])
-                    
-                    return {
-                        "message": f"Problem {new_problems_solved}/{total_problems} solved! Loading next problem...",
-                        "correct": True,
-                        "problems_solved": new_problems_solved,
-                        "total_problems": total_problems,
-                        "next_problem": next_problem,
-                        "match_complete": False,
-                        "score": final_score,
-                        "time_elapsed": time_elapsed,
-                        "progress": {
-                            "current": new_problem_index + 1,
-                            "total": total_problems,
-                            "problems_solved": new_problems_solved
-                        }
-                    }
-            
-            # Player finished all problems, waiting for others
+            # Not all players completed yet - match continues
             return {
-                "message": "All problems solved! Waiting for other players to finish.",
+                "message": "Solution submitted! Waiting for other players to finish.",
                 "correct": True,
-                "problems_solved": new_problems_solved,
-                "total_problems": total_problems,
-                "all_problems_complete": True,
-                "time_elapsed": time_elapsed,
-                "score": final_score
+                "time_elapsed": time_elapsed
             }
     else:
         # Legacy 1v1 match handling - Multi-problem support
@@ -1311,7 +1293,7 @@ async def submit_solution(
         submission_record = {
             "problem_id": current_problem_id,
             "time": time_elapsed,
-            "score": final_score,
+            "score": 0,  # Will be set later based on rank
             "passed": True
         }
         
@@ -1320,11 +1302,12 @@ async def submit_solution(
             f"{player_key}.time_elapsed": time_elapsed,
             f"{player_key}.submission_time": datetime.utcnow(),
             f"{player_key}.current_problem_index": new_problem_index,
-            f"{player_key}.problems_solved": new_problems_solved
+            f"{player_key}.problems_solved": new_problems_solved,
+            f"{player_key}.score": 0  # Reset score, will be set by rank later
         }
         
-        # Only mark as completed if all problems solved
-        if new_problem_index >= total_problems:
+        # Only mark as completed if all problems solved (which is just 1 problem now)
+        if new_problem_index >= 1:
             update_data[f"{player_key}.completed"] = True
         
         if game_mode == "code_shuffle":
@@ -1346,13 +1329,27 @@ async def submit_solution(
         match = await db.matches.find_one({"_id": match_oid})
         
         if match["player1"]["completed"] and match["player2"]["completed"]:
-            # Determine winner (fastest time wins)
-            if match["player1"]["time_elapsed"] < match["player2"]["time_elapsed"]:
+            # Determine winner by time (faster wins)
+            p1_time = match["player1"]["time_elapsed"]
+            p2_time = match["player2"]["time_elapsed"]
+            
+            if p1_time < p2_time:
                 winner_key = "player1"
                 loser_key = "player2"
             else:
                 winner_key = "player2"
                 loser_key = "player1"
+            
+            # Assign points: Winner = 100, Loser = 50
+            await db.matches.update_one(
+                {"_id": match_oid},
+                {
+                    "$set": {
+                        f"{winner_key}.score": 100,
+                        f"{loser_key}.score": 50
+                    }
+                }
+            )
             
             winner = match[winner_key]
             loser = match[loser_key]
@@ -1422,44 +1419,15 @@ async def submit_solution(
                 xp_bonus=xp_bonus
             )
         
-        
         elif match[player_key]["completed"]:
-            # Current player finished ALL problems, waiting for opponent
+            # Current player finished, waiting for opponent
             return {
-                "message": "All problems solved! Waiting for opponent to finish.",
+                "message": "Solution submitted! Waiting for opponent to finish.",
                 "correct": True,
-                "problems_solved": new_problems_solved,
-                "total_problems": total_problems,
-                "all_problems_complete": True,
                 "time_elapsed": time_elapsed
             }
         else:
-            # Player hasn't finished all problems yet - return next problem
-            if new_problem_index < total_problems:
-                # Get next problem
-                next_problem_id = problem_ids[new_problem_index]
-                next_problem = await db.problems.find_one({"_id": ObjectId(next_problem_id)})
-                
-                if next_problem:
-                    # Convert ObjectId to string for JSON serialization
-                    next_problem["_id"] = str(next_problem["_id"])
-                    
-                    return {
-                        "message": f"Problem {new_problems_solved}/{total_problems} solved! Loading next problem...",
-                        "correct": True,
-                        "problems_solved": new_problems_solved,
-                        "total_problems": total_problems,
-                        "next_problem": next_problem,
-                        "match_complete": False,
-                        "time_elapsed": time_elapsed,
-                        "progress": {
-                            "current": new_problem_index + 1,
-                            "total": total_problems,
-                            "problems_solved": new_problems_solved
-                        }
-                    }
-            
-            # Fallback (shouldn't reach here)
+            # Shouldn't reach here
             return {
                 "message": "Solution submitted successfully.",
                 "time_elapsed": time_elapsed

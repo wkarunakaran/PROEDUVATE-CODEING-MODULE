@@ -30,6 +30,8 @@ export default function CompetitiveMatch() {
   // For Match Completion Leaderboard
   const [matchCompleted, setMatchCompleted] = useState(false);
   const [finalResults, setFinalResults] = useState(null);
+  const [isWaitingForPlayers, setIsWaitingForPlayers] = useState(false);
+  const pollIntervalRef = useRef(null);
 
   useEffect(() => {
     fetchMatch();
@@ -37,6 +39,9 @@ export default function CompetitiveMatch() {
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
+      }
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
       }
     };
   }, [matchId]);
@@ -126,32 +131,28 @@ export default function CompetitiveMatch() {
       const data = await res.json();
 
       // Display scoreboard with current standings
-      if (data.players && data.players.length > 2) {
-        // Multiplayer
-        const sortedPlayers = [...data.players].sort((a, b) => {
-          // Sort by problems solved (more is better), then by score (higher is better), then by time (faster is better)
-          const aSolved = a.problems_solved || 0;
-          const bSolved = b.problems_solved || 0;
-          if (aSolved !== bSolved) return bSolved - aSolved;
-          
-          const aScore = a.score || 0;
-          const bScore = b.score || 0;
-          if (aScore !== bScore) return bScore - aScore;
-          
-          return (a.time_elapsed || Infinity) - (b.time_elapsed || Infinity);
-        });
+        if (data.players && data.players.length > 2) {
+          // Multiplayer - sort by rank if available, otherwise by time (fastest first)
+          const sortedPlayers = [...data.players].sort((a, b) => {
+            // If ranks are set by server, use them
+            if (a.rank && b.rank) {
+              return a.rank - b.rank;
+            }
+            // Otherwise sort by time (fastest first)
+            return (a.time_elapsed || Infinity) - (b.time_elapsed || Infinity);
+          });
 
-        const currentPlayerRank = sortedPlayers.findIndex(p => p.user_id === currentUserId) + 1;
-        const currentPlayer = sortedPlayers.find(p => p.user_id === currentUserId);
+          const currentPlayerRank = sortedPlayers.findIndex(p => p.user_id === currentUserId) + 1;
+          const currentPlayer = sortedPlayers.find(p => p.user_id === currentUserId);
 
-        setFinalResults({
-          type: 'multiplayer',
-          rank: currentPlayerRank,
-          score: currentPlayer?.score || 0,
-          players: sortedPlayers,
-          currentUserId: currentUserId,
-        });
-      } else {
+          setFinalResults({
+            type: 'multiplayer',
+            rank: currentPlayer?.rank || currentPlayerRank,
+            score: currentPlayer?.score || 0,
+            players: sortedPlayers,
+            currentUserId: currentUserId,
+          });
+        } else {
         // 1v1
         const player1 = data.player1 || {};
         const player2 = data.player2 || {};
@@ -383,6 +384,8 @@ export default function CompetitiveMatch() {
         if (data.all_problems_complete && !data.winner_id && !data.winners) {
           setOutput(`✅ All ${data.total_problems || 5} problems solved! Waiting for other players to finish...\n\nYour Score: ${data.score || 0}\nTime: ${data.time_elapsed?.toFixed(2) || 0}s`);
           setLoading(false);
+          setIsWaitingForPlayers(true);
+          startPollingMatchStatus();
           return;
         }
 
@@ -452,6 +455,8 @@ export default function CompetitiveMatch() {
           } else {
             setOutput(waitMsg);
           }
+          setIsWaitingForPlayers(true);
+          startPollingMatchStatus();
         }
 
         if (timerRef.current && (data.winner_id || data.winners)) {
@@ -631,6 +636,93 @@ export default function CompetitiveMatch() {
     } catch (err) {
       console.error("Error using hint:", err);
     }
+  };
+
+  const startPollingMatchStatus = () => {
+    if (pollIntervalRef.current) return;
+    
+    console.log("🔄 Starting match status polling...");
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`${API_BASE}/competitive/matches/${matchId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (!res.ok) return;
+        
+        const data = await res.json();
+        
+        if (data.status === "completed" && (data.winner_id || data.winners)) {
+          console.log("🏆 Match completed detected via polling!");
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+          setIsWaitingForPlayers(false);
+          
+          const currentUserId = localStorage.getItem("userId");
+          
+          if (data.winners) {
+            const players = data.players || [];
+            // Sort by rank if available (set by server), otherwise by time (faster first)
+            const sortedPlayers = [...players].sort((a, b) => {
+              // If ranks are set by server, use them
+              if (a.rank && b.rank) {
+                return a.rank - b.rank;
+              }
+              // Otherwise sort by time (faster is better)
+              return (a.time_elapsed || Infinity) - (b.time_elapsed || Infinity);
+            });
+
+            const currentPlayer = sortedPlayers.find(p => p.user_id === currentUserId);
+            const rank = currentPlayer?.rank || (sortedPlayers.findIndex(p => p.user_id === currentUserId) + 1);
+
+            setFinalResults({
+              type: 'multiplayer',
+              rank,
+              score: currentPlayer?.score || 0,
+              players: sortedPlayers,
+              currentUserId
+            });
+          } else {
+            const isWinner = data.winner_id === currentUserId;
+            const player1Score = data.player1?.score || 0;
+            const player2Score = data.player2?.score || 0;
+
+            setFinalResults({
+              type: '1v1',
+              isWinner,
+              winnerId: data.winner_id,
+              winnerUsername: data.winner_username,
+              player1: {
+                userId: data.player1?.user_id || '',
+                username: data.player1?.username || 'Player 1',
+                completed: true,
+                completionTime: data.player1?.time_elapsed,
+                isWinner: data.winner_id === data.player1?.user_id,
+                score: player1Score
+              },
+              player2: {
+                userId: data.player2?.user_id || '',
+                username: data.player2?.username || 'Player 2',
+                completed: true,
+                completionTime: data.player2?.time_elapsed,
+                isWinner: data.winner_id === data.player2?.user_id,
+                score: player2Score
+              },
+              ratingChange: 15,
+              currentUserId
+            });
+          }
+          
+          setMatchCompleted(true);
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+          }
+        }
+      } catch (err) {
+        console.error("Polling error:", err);
+      }
+    }, 2000);
   };
 
   const formatTime = (seconds) => {
@@ -1279,6 +1371,8 @@ export default function CompetitiveMatch() {
                         {finalResults.player1.isWinner ? '🏆 Winner' : '2nd Place'}
                       </div>
                       <div className="flex items-center justify-center gap-2 text-slate-300 mt-3">
+                        <span className="text-emerald-400 font-bold">{finalResults.player1.score || 0} pts</span>
+                        <span className="text-slate-500">•</span>
                         <ClockIcon size={16} />
                         <span>{finalResults.player1.completionTime?.toFixed(1) || 'N/A'}s</span>
                       </div>
@@ -1306,6 +1400,8 @@ export default function CompetitiveMatch() {
                         {finalResults.player2.isWinner ? '🏆 Winner' : '2nd Place'}
                       </div>
                       <div className="flex items-center justify-center gap-2 text-slate-300 mt-3">
+                        <span className="text-emerald-400 font-bold">{finalResults.player2.score || 0} pts</span>
+                        <span className="text-slate-500">•</span>
                         <ClockIcon size={16} />
                         <span>{finalResults.player2.completionTime?.toFixed(1) || 'N/A'}s</span>
                       </div>
@@ -1360,7 +1456,13 @@ export default function CompetitiveMatch() {
                 <div className="bg-slate-800/50 rounded-xl p-6 mb-6">
                   <h2 className="text-xl font-bold text-white mb-4">Final Rankings</h2>
                   <div className="space-y-3">
-                    {(finalResults.players || []).map((player, idx) => {
+                    {[...(finalResults.players || [])].sort((a, b) => {
+                      // Sort by rank if available, otherwise by time (faster first)
+                      if (a.rank && b.rank) {
+                        return a.rank - b.rank;
+                      }
+                      return (a.time_elapsed || Infinity) - (b.time_elapsed || Infinity);
+                    }).map((player, idx) => {
                       const rank = idx + 1;
                       const isCurrentUser = player?.user_id === finalResults.currentUserId;
                       const getMedalIcon = () => {
@@ -1391,11 +1493,11 @@ export default function CompetitiveMatch() {
                               )}
                             </div>
                             <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
-                              <span>Score: {player.score || finalResults.score || 0}</span>
-                              {player.completion_time && (
+                              <span className="text-emerald-400 font-bold">Points: {player.score || 0}</span>
+                              {player.time_elapsed && (
                                 <span className="flex items-center gap-1">
                                   <ClockIcon size={12} />
-                                  {player.completion_time.toFixed(1)}s
+                                  {player.time_elapsed.toFixed(1)}s
                                 </span>
                               )}
                             </div>
