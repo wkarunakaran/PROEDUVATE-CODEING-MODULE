@@ -83,16 +83,16 @@ export default function Register({ onLogin }) {
 
   return (
     <div className="flex items-center justify-center min-h-[70vh]">
-      <div className="w-full max-w-sm rounded-2xl border border-emerald-500/60 bg-slate-950/90 p-6 shadow-xl">
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-card/90 p-6 shadow-xl">
         <h1 className="text-lg font-semibold mb-1">Create Account</h1>
-        <p className="text-xs text-slate-400 mb-4">
+        <p className="text-xs text-muted-foreground mb-4">
           Join codoAI and start your coding journey. Use <b>admin</b> as username for admin access.
         </p>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="text-xs flex flex-col gap-1">
             <label>Username</label>
             <input
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs outline-none focus:border-emerald-500"
+              className="w-full rounded-lg border border-input bg-input px-3 py-2 text-xs outline-none focus:border-emerald-500"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="e.g. wesley"
@@ -102,7 +102,7 @@ export default function Register({ onLogin }) {
             <label>Password</label>
             <input
               type="password"
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs outline-none focus:border-emerald-500"
+              className="w-full rounded-lg border border-input bg-input px-3 py-2 text-xs outline-none focus:border-emerald-500"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
@@ -112,7 +112,7 @@ export default function Register({ onLogin }) {
             <label>Confirm Password</label>
             <input
               type="password"
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs outline-none focus:border-emerald-500"
+              className="w-full rounded-lg border border-input bg-input px-3 py-2 text-xs outline-none focus:border-emerald-500"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="••••••••"
@@ -121,7 +121,7 @@ export default function Register({ onLogin }) {
           <div className="text-xs flex flex-col gap-1">
             <label>Preferred Language</label>
             <select
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs outline-none focus:border-emerald-500"
+              className="w-full rounded-lg border border-input bg-input px-3 py-2 text-xs outline-none focus:border-emerald-500"
               value={preferredLanguage}
               onChange={(e) => setPreferredLanguage(e.target.value)}
             >
@@ -142,7 +142,7 @@ export default function Register({ onLogin }) {
             {isLoading ? "Creating account..." : "Sign up"}
           </button>
         </form>
-        <div className="mt-4 text-center text-xs text-slate-400">
+        <div className="mt-4 text-center text-xs text-muted-foreground">
           Already have an account?{" "}
           <Link to="/login" className="text-emerald-400 hover:text-emerald-300">
             Sign in

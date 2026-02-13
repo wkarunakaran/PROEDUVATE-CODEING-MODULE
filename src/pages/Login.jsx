@@ -50,9 +50,9 @@ export default function Login({ onLogin }) {
 
   return (
     <div className="flex items-center justify-center min-h-[70vh]">
-      <div className="w-full max-w-sm rounded-2xl border border-emerald-500/60 bg-slate-950/90 p-6 shadow-xl">
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-card/90 p-6 shadow-xl">
         <h1 className="text-lg font-semibold mb-1">Sign in to codoAI</h1>
-        <p className="text-xs text-slate-400 mb-4">
+        <p className="text-xs text-muted-foreground mb-4">
           Use any username + password. Login as <b>admin</b> to access the admin
           panel.
         </p>
@@ -60,7 +60,7 @@ export default function Login({ onLogin }) {
           <div className="text-xs flex flex-col gap-1">
             <label>Username</label>
             <input
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs outline-none focus:border-emerald-500"
+              className="w-full rounded-lg border border-input bg-input px-3 py-2 text-xs outline-none focus:border-emerald-500"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="e.g. wesley"
@@ -70,7 +70,7 @@ export default function Login({ onLogin }) {
             <label>Password</label>
             <input
               type="password"
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs outline-none focus:border-emerald-500"
+              className="w-full rounded-lg border border-input bg-input px-3 py-2 text-xs outline-none focus:border-emerald-500"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
@@ -87,7 +87,7 @@ export default function Login({ onLogin }) {
             {isLoading ? "Signing in..." : "Sign in"}
           </button>
         </form>
-        <div className="mt-4 text-center text-xs text-slate-400">
+        <div className="mt-4 text-center text-xs text-muted-foreground">
           Don't have an account?{" "}
           <Link to="/register" className="text-emerald-400 hover:text-emerald-300">
             Sign up

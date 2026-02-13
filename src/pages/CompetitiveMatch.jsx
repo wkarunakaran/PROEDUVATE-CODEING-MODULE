@@ -52,6 +52,7 @@ export default function CompetitiveMatch() {
   const theme = getThemeClasses(isDark);
   const { matchId } = useParams();
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const [match, setMatch] = useState(null);
   const [problem, setProblem] = useState(null);
@@ -151,11 +152,11 @@ export default function CompetitiveMatch() {
   useEffect(() => {
     if (matchStartTime && !matchCompleted) {
       // Parse server timestamp as UTC (server sends naive UTC datetime without 'Z')
-      const utcTimestamp = matchStartTime.endsWith('Z') || matchStartTime.includes('+') 
-        ? matchStartTime 
+      const utcTimestamp = matchStartTime.endsWith('Z') || matchStartTime.includes('+')
+        ? matchStartTime
         : matchStartTime + 'Z';
       const startTime = new Date(utcTimestamp).getTime();
-      
+
       const updateTimer = () => {
         const now = Date.now();
         const elapsed = Math.floor((now - startTime) / 1000);
@@ -182,24 +183,24 @@ export default function CompetitiveMatch() {
     if (!match || !matchStartTime || matchCompleted) return;
 
     const timeLimit = match.time_limit_seconds || 900; // Default 15 minutes
-    
+
     // Safety: Ensure we have a valid time limit
     if (timeLimit <= 0) {
       console.log("[WARNING] Invalid time limit:", timeLimit);
       return;
     }
-    
+
     // Only check timeout for active matches
     if (match.status !== "active") {
       console.log("[WARNING] Match not active, status:", match.status);
       return;
     }
-    
+
     // Prevent checking on initial load - wait for at least 10 seconds of game time
     if (timeElapsed < 10) {
       return;
     }
-    
+
     const timeRemaining = Math.max(0, timeLimit - timeElapsed);
 
     // Only trigger timeout if timer reached 0 and has been running
@@ -239,11 +240,11 @@ export default function CompetitiveMatch() {
           const aSolved = a.problems_solved || 0;
           const bSolved = b.problems_solved || 0;
           if (aSolved !== bSolved) return bSolved - aSolved;
-          
+
           const aScore = a.score || 0;
           const bScore = b.score || 0;
           if (aScore !== bScore) return bScore - aScore;
-          
+
           return (a.time_elapsed || Infinity) - (b.time_elapsed || Infinity);
         });
 
@@ -300,7 +301,7 @@ export default function CompetitiveMatch() {
       console.log("[INFO] Game ended due to time expiration - showing final standings");
     } catch (err) {
       console.error("Error handling time expiration:", err);
-      alert("Time's up! Failed to load final results.");
+      showToast("Time's up! Failed to load final results.", "error");
     }
   };
 
@@ -327,7 +328,7 @@ export default function CompetitiveMatch() {
       console.log("[INFO] Winner ID:", data.winner_id);
       console.log("[INFO] Time limit:", data.time_limit_seconds);
       setMatch(data);
-      
+
       // Set match start time for accurate timer calculation (survives page refresh)
       if (data.started_at) {
         setMatchStartTime(data.started_at);
@@ -386,7 +387,7 @@ export default function CompetitiveMatch() {
 
     } catch (err) {
       console.error("Error fetching match:", err);
-      alert("Failed to load match: " + err.message);
+      showToast(`Failed to load match: ${err.message}`, "error");
       navigate("/competitive");
     }
   };
@@ -783,7 +784,7 @@ export default function CompetitiveMatch() {
 
   const handleUseHint = async () => {
     if (usedHints) {
-      alert("You have already used a hint in this match");
+      showToast("You have already used a hint in this match", "warning");
       return;
     }
 
@@ -797,7 +798,7 @@ export default function CompetitiveMatch() {
       });
 
       setUsedHints(true);
-      alert("Hint used! Note: This reduces your potential XP bonus.");
+      showToast("Hint used! Note: This reduces your potential XP bonus.", "info");
     } catch (err) {
       console.error("Error using hint:", err);
     }
@@ -1143,7 +1144,7 @@ export default function CompetitiveMatch() {
                 onClick={handleUseHint}
                 disabled={usedHints}
                 className={`text-xs px-3 py-1 rounded ${usedHints
-                  ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                  ? 'bg-secondary text-muted-foreground cursor-not-allowed'
                   : 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
                   }`}
               >
@@ -1170,7 +1171,7 @@ export default function CompetitiveMatch() {
                 <Bug size={32} className="text-red-400" />
                 <div>
                   <h3 className="text-sm font-bold text-red-400">Bug Hunt Challenge</h3>
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     The code below contains bugs! Find and fix all errors to make it pass the test cases.
                     <span className="text-red-300 font-semibold"> Copy/Paste is disabled</span> - you must manually edit the code.
                   </p>
@@ -1188,7 +1189,7 @@ export default function CompetitiveMatch() {
                   <h3 className="text-sm font-semibold text-purple-400 mb-2">
                     Arrange the code lines in the correct order
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-muted-foreground">
                     Drag lines to reorder or use arrow buttons. At least 80% accuracy required.
                   </p>
                 </div>
@@ -1290,7 +1291,7 @@ export default function CompetitiveMatch() {
                         onClick={handleSubmit}
                         disabled={loading}
                         className={`flex-1 px-4 py-2 rounded font-medium ${loading
-                          ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                          ? 'bg-secondary text-muted-foreground cursor-not-allowed'
                           : 'bg-purple-500 text-white hover:bg-purple-600'
                           }`}
                       >
@@ -1372,7 +1373,7 @@ export default function CompetitiveMatch() {
                     onClick={handleSubmit}
                     disabled={loading}
                     className={`flex-1 px-4 py-2 rounded font-medium ${loading
-                      ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                      ? 'bg-secondary text-muted-foreground cursor-not-allowed'
                       : 'bg-blue-500 text-white hover:bg-blue-600'
                       }`}
                   >

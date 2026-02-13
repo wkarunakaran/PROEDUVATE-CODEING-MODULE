@@ -87,20 +87,20 @@ export default function Problems({ problems, attempts, currentLanguage }) {
         <Link
           key={p.id}
           to={`/workspace/${p.id}`}
-          className="block rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2 hover:border-emerald-500/80 transition-colors"
+          className="block rounded-xl border border-border bg-card/80 px-3 py-2 hover:border-emerald-500/80 transition-colors"
         >
           <div className="flex justify-between gap-3">
             <div>
-              <div className="font-semibold text-slate-100">
+              <div className="font-semibold text-foreground">
                 {p.title}
               </div>
               <div className="flex flex-wrap gap-1 mt-1">
                 <span
                   className={`px-2 py-[2px] rounded-full text-[10px] ${p.difficulty === "Easy"
-                      ? "bg-emerald-500/15 text-emerald-300"
-                      : p.difficulty === "Medium"
-                        ? "bg-amber-500/15 text-amber-300"
-                        : "bg-rose-500/15 text-rose-300"
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                    : p.difficulty === "Medium"
+                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                      : "bg-rose-500/15 text-rose-700 dark:text-rose-300"
                     }`}
                 >
                   {p.difficulty}
@@ -108,7 +108,7 @@ export default function Problems({ problems, attempts, currentLanguage }) {
                 {p.topics.map((t) => (
                   <span
                     key={t}
-                    className="px-2 py-[2px] rounded-full text-[10px] border border-slate-700 text-slate-300"
+                    className="px-2 py-[2px] rounded-full text-[10px] border border-border text-muted-foreground"
                   >
                     {t}
                   </span>
@@ -117,7 +117,7 @@ export default function Problems({ problems, attempts, currentLanguage }) {
             </div>
             <div className="w-28">
               <ProgressBar value={progress} />
-              <div className="text-[10px] text-slate-400 mt-1 text-right">
+              <div className="text-[10px] text-muted-foreground mt-1 text-right">
                 {completed ? <span className="flex items-center gap-1"><CheckCircle2 size={10} /> Completed</span> : "In progress"}
               </div>
             </div>
@@ -130,18 +130,18 @@ export default function Problems({ problems, attempts, currentLanguage }) {
   return (
     <div>
       <h1 className="text-lg font-semibold mb-2">All problems</h1>
-      <p className="text-xs text-slate-400 mb-4">
+      <p className="text-xs text-muted-foreground mb-4">
         Practice step by step in {currentLanguage.toUpperCase()}.
       </p>
 
       {/* Completed Problems Section */}
       {completedProblems.length > 0 && (
-        <div className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4">
+        <div className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-100/50 dark:bg-emerald-950/20 p-4">
           <div className="flex items-center gap-2 mb-3">
-            <h2 className="text-sm font-semibold text-emerald-300 flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
               <CheckCircle2 size={16} /> Completed Problems
             </h2>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-muted-foreground">
               ({completedProblems.length} completed)
             </span>
           </div>
@@ -152,44 +152,44 @@ export default function Problems({ problems, attempts, currentLanguage }) {
                 <Link
                   key={p.id}
                   to={`/workspace/${p.id}`}
-                  className="block rounded-lg border border-slate-700 bg-slate-950/80 p-3 hover:border-emerald-500/80 transition-colors"
+                  className="block rounded-lg border border-border bg-card/80 p-3 hover:border-emerald-500/80 transition-colors"
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <div className="font-semibold text-slate-100 text-xs">
+                    <div className="font-semibold text-foreground text-xs">
                       {p.title}
                     </div>
-                    <CheckCircle2 className="text-emerald-400" size={18} />
+                    <CheckCircle2 className="text-emerald-600 dark:text-emerald-400" size={18} />
                   </div>
 
                   <div className="flex flex-wrap gap-1 mb-2">
                     <span
                       className={`px-2 py-[2px] rounded-full text-[10px] ${p.difficulty === "Easy"
-                          ? "bg-emerald-500/15 text-emerald-300"
-                          : p.difficulty === "Medium"
-                            ? "bg-amber-500/15 text-amber-300"
-                            : "bg-rose-500/15 text-rose-300"
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                        : p.difficulty === "Medium"
+                          ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                          : "bg-rose-500/15 text-rose-700 dark:text-rose-300"
                         }`}
                     >
                       {p.difficulty}
                     </span>
                   </div>
 
-                  <div className="space-y-1 text-[10px] text-slate-400">
+                  <div className="space-y-1 text-[10px] text-muted-foreground">
                     <div className="flex justify-between">
                       <span>Total Time:</span>
-                      <span className="text-slate-300 font-medium">
+                      <span className="text-foreground font-medium">
                         {p.totalTime.toFixed(1)}s
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Rounds Completed:</span>
-                      <span className="text-slate-300 font-medium">
+                      <span className="text-foreground font-medium">
                         {p.roundsCompleted}/4
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Language:</span>
-                      <span className="text-slate-300 font-medium uppercase">
+                      <span className="text-foreground font-medium uppercase">
                         {currentLanguage}
                       </span>
                     </div>
@@ -210,7 +210,7 @@ export default function Problems({ problems, attempts, currentLanguage }) {
             placeholder="Search problems by title or topic..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 text-xs rounded-lg border border-slate-700 bg-slate-950/80 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50"
+            className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-card/80 text-foreground placeholder-muted-foreground focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50"
           />
         </div>
 
@@ -218,20 +218,20 @@ export default function Problems({ problems, attempts, currentLanguage }) {
         <div className="flex flex-wrap gap-3 text-xs">
           {/* Difficulty Filter */}
           <div className="flex gap-1.5">
-            <span className="text-slate-400 self-center">Difficulty:</span>
+            <span className="text-muted-foreground self-center">Difficulty:</span>
             {["All", "Easy", "Medium", "Hard"].map(diff => (
               <button
                 key={diff}
                 onClick={() => setSelectedDifficulty(diff)}
                 className={`px-3 py-1.5 rounded-lg border transition-colors ${selectedDifficulty === diff
-                    ? diff === "Easy"
-                      ? "border-emerald-500 bg-emerald-500/20 text-emerald-300"
-                      : diff === "Medium"
-                        ? "border-amber-500 bg-amber-500/20 text-amber-300"
-                        : diff === "Hard"
-                          ? "border-rose-500 bg-rose-500/20 text-rose-300"
-                          : "border-blue-500 bg-blue-500/20 text-blue-300"
-                    : "border-slate-700 bg-slate-950/80 text-slate-400 hover:border-slate-600"
+                  ? diff === "Easy"
+                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                    : diff === "Medium"
+                      ? "border-amber-500 bg-amber-500/20 text-amber-700 dark:text-amber-300"
+                      : diff === "Hard"
+                        ? "border-rose-500 bg-rose-500/20 text-rose-700 dark:text-rose-300"
+                        : "border-blue-500 bg-blue-500/20 text-blue-700 dark:text-blue-300"
+                  : "border-border bg-card/80 text-muted-foreground hover:border-slate-500"
                   }`}
               >
                 {diff}
@@ -241,14 +241,14 @@ export default function Problems({ problems, attempts, currentLanguage }) {
 
           {/* Status Filter */}
           <div className="flex gap-1.5">
-            <span className="text-slate-400 self-center">Status:</span>
+            <span className="text-muted-foreground self-center">Status:</span>
             {["All", "Completed", "In Progress"].map(status => (
               <button
                 key={status}
                 onClick={() => setSelectedStatus(status)}
                 className={`px-3 py-1.5 rounded-lg border transition-colors ${selectedStatus === status
-                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-300"
-                    : "border-slate-700 bg-slate-950/80 text-slate-400 hover:border-slate-600"
+                  ? "border-emerald-500 bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                  : "border-border bg-card/80 text-muted-foreground hover:border-slate-500"
                   }`}
               >
                 {status}
@@ -260,19 +260,19 @@ export default function Problems({ problems, attempts, currentLanguage }) {
         {/* Active Filters Summary */}
         {(selectedDifficulty !== "All" || selectedStatus !== "All" || searchQuery) && (
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-400">Active filters:</span>
+            <span className="text-muted-foreground">Active filters:</span>
             {selectedDifficulty !== "All" && (
-              <span className="px-2 py-1 rounded-md bg-slate-800 text-slate-300">
+              <span className="px-2 py-1 rounded-md bg-secondary text-secondary-foreground">
                 {selectedDifficulty}
               </span>
             )}
             {selectedStatus !== "All" && (
-              <span className="px-2 py-1 rounded-md bg-slate-800 text-slate-300">
+              <span className="px-2 py-1 rounded-md bg-secondary text-secondary-foreground">
                 {selectedStatus}
               </span>
             )}
             {searchQuery && (
-              <span className="px-2 py-1 rounded-md bg-slate-800 text-slate-300">
+              <span className="px-2 py-1 rounded-md bg-secondary text-secondary-foreground">
                 "{searchQuery}"
               </span>
             )}
@@ -282,7 +282,7 @@ export default function Problems({ problems, attempts, currentLanguage }) {
                 setSelectedStatus("All");
                 setSearchQuery("");
               }}
-              className="px-2 py-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+              className="px-2 py-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/20"
             >
               Clear all
             </button>
@@ -291,7 +291,7 @@ export default function Problems({ problems, attempts, currentLanguage }) {
       </div>
 
       {/* Results Count */}
-      <div className="mb-4 text-xs text-slate-400">
+      <div className="mb-4 text-xs text-muted-foreground">
         Showing {filteredProblems.length} of {problems.length} problems
       </div>
 
@@ -316,10 +316,10 @@ export default function Problems({ problems, attempts, currentLanguage }) {
           {easyProblems.length > 0 && (
             <div className="mb-8">
               <div className="flex items-center gap-2 mb-3">
-                <h2 className="text-sm font-semibold text-emerald-300">
+                <h2 className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
                   Easy Problems
                 </h2>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-muted-foreground">
                   ({easyProblems.length})
                 </span>
               </div>
@@ -333,10 +333,10 @@ export default function Problems({ problems, attempts, currentLanguage }) {
           {mediumProblems.length > 0 && (
             <div className="mb-8">
               <div className="flex items-center gap-2 mb-3">
-                <h2 className="text-sm font-semibold text-amber-300">
+                <h2 className="text-sm font-semibold text-amber-700 dark:text-amber-300">
                   Medium Problems
                 </h2>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-muted-foreground">
                   ({mediumProblems.length})
                 </span>
               </div>
@@ -350,10 +350,10 @@ export default function Problems({ problems, attempts, currentLanguage }) {
           {hardProblems.length > 0 && (
             <div className="mb-8">
               <div className="flex items-center gap-2 mb-3">
-                <h2 className="text-sm font-semibold text-rose-300">
+                <h2 className="text-sm font-semibold text-rose-700 dark:text-rose-300">
                   Hard Problems
                 </h2>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-muted-foreground">
                   ({hardProblems.length})
                 </span>
               </div>

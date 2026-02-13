@@ -30,7 +30,7 @@ export default function AchievementsPanel({ stats }) {
   return (
     <div className="mt-6">
       <h2 className="text-sm font-semibold mb-1">Achievements & Badges</h2>
-      <p className="text-xs text-slate-400 mb-3">
+      <p className="text-xs text-muted-foreground mb-3">
         Earn badges as you complete more problems, solve them faster, and use
         multiple languages.
       </p>
@@ -39,18 +39,18 @@ export default function AchievementsPanel({ stats }) {
           <div
             key={b.id}
             className={`flex gap-2 p-2.5 rounded-xl border text-xs ${b.unlocked
-                ? "border-emerald-500/70 bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
-                : "border-slate-700 bg-slate-900/70 opacity-70"
+              ? "border-emerald-500/70 bg-emerald-100/50 dark:bg-emerald-500/10 shadow-[0_0_15px_rgba(16,185,129,0.3)] text-emerald-900 dark:text-emerald-100"
+              : "border-border bg-muted/50 opacity-70"
               }`}
           >
-            <div className="h-8 w-8 rounded-full bg-slate-900 flex items-center justify-center text-lg">
+            <div className={`h-8 w-8 rounded-full flex items-center justify-center text-lg ${b.unlocked ? "bg-emerald-200 dark:bg-slate-900 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
               {b.icon}
             </div>
             <div className="flex flex-col">
               <span className="font-semibold">{b.label}</span>
-              <span className="text-[11px] text-slate-300">{b.desc}</span>
+              <span className={`text-[11px] ${b.unlocked ? "text-emerald-700/80 dark:text-emerald-200/70" : "text-muted-foreground"}`}>{b.desc}</span>
               <span
-                className={`mt-1 text-[10px] uppercase tracking-wide ${b.unlocked ? "text-emerald-300" : "text-slate-500"
+                className={`mt-1 text-[10px] uppercase tracking-wide ${b.unlocked ? "text-emerald-600 dark:text-emerald-300" : "text-muted-foreground"
                   }`}
               >
                 {b.unlocked ? "Unlocked" : "Locked"}

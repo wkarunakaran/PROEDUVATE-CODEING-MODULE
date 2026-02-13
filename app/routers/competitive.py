@@ -717,19 +717,12 @@ async def join_lobby(
         else:
             raise HTTPException(status_code=404, detail="Lobby not found. Please check the Game ID.")
     
-    # Check if lobby is full
-    current_players = len(lobby.get("players", []))
-    max_players = lobby.get("max_players", 15)
-    
-    if current_players >= max_players:
-        raise HTTPException(status_code=400, detail="Lobby is full")
-    
     # Check if user already in lobby
     user_id = current_user["id"]
     for player in lobby.get("players", []):
         if player.get("user_id") == user_id:
             raise HTTPException(status_code=400, detail="You are already in this lobby")
-    
+            
     # Add player to lobby
     new_player = {
         "user_id": user_id,
@@ -751,10 +744,30 @@ async def join_lobby(
         "submissions": []
     }
     
-    await db.lobbies.update_one(
-        {"_id": lobby["_id"]},
+    # Atomic check and update to prevent race conditions
+    # We use $expr to compare the size of players array with max_players
+    result = await db.lobbies.update_one(
+        {
+            "_id": lobby["_id"],
+            "status": "waiting",
+            "$expr": {"$lt": [{"$size": "$players"}, "$max_players"]}
+        },
         {"$push": {"players": new_player}}
     )
+
+    if result.modified_count == 0:
+        # Check if it failed because it's full or status changed
+        updated_lobby = await db.lobbies.find_one({"_id": lobby["_id"]})
+        if not updated_lobby:
+            raise HTTPException(status_code=404, detail="Lobby not found")
+        
+        if updated_lobby["status"] != "waiting":
+            raise HTTPException(status_code=400, detail="Lobby is no longer accepting players")
+            
+        if len(updated_lobby.get("players", [])) >= updated_lobby.get("max_players", 15):
+            raise HTTPException(status_code=400, detail="Lobby is full")
+            
+        raise HTTPException(status_code=400, detail="Failed to join lobby")
     
     # Fetch updated lobby
     updated_lobby = await db.lobbies.find_one({"_id": lobby["_id"]})
@@ -864,9 +877,12 @@ async def start_lobby(
     result = await db.matches.insert_one(match_doc)
     match_id = str(result.inserted_id)
     
-    # Update lobby status
-    await db.lobbies.update_one(
-        {"_id": lobby["_id"]},
+    # Update lobby status atomically to prevent multiple starts
+    result = await db.lobbies.update_one(
+        {
+            "_id": lobby["_id"],
+            "status": "waiting"  # Ensure it's still waiting
+        },
         {
             "$set": {
                 "status": "active",
@@ -875,6 +891,11 @@ async def start_lobby(
             }
         }
     )
+    
+    if result.modified_count == 0:
+        # Rollback match creation if lobby update failed
+        await db.matches.delete_one({"_id": result.inserted_id})
+        raise HTTPException(status_code=400, detail="Failed to start game. It may have already started.")
     
     return {
         "message": "Game started!",
@@ -911,8 +932,15 @@ async def leave_lobby(
     if lobby["host_id"] == user_id:
         if len(updated_players) > 0:
             new_host = updated_players[0]
-            await db.lobbies.update_one(
-                {"_id": lobby["_id"]},
+            
+            # Atomically update host and remove player
+            # Only proceeds if current host matches (prevents race conditions)
+            result = await db.lobbies.update_one(
+                {
+                    "_id": lobby["_id"], 
+                    "host_id": user_id,
+                    "players.user_id": user_id 
+                },
                 {
                     "$set": {
                         "host_id": new_host["user_id"],
@@ -921,17 +949,32 @@ async def leave_lobby(
                     }
                 }
             )
+            
+            if result.modified_count == 0:
+                # Retry fetch to see what happened
+                return await leave_lobby(game_id, current_user)
+                
             return {"message": f"Left lobby. New host: {new_host['username']}"}
         else:
-            # No players left, delete lobby
+            # No players left, safe to delete
             await db.lobbies.delete_one({"_id": lobby["_id"]})
             return {"message": "Lobby closed (no players remaining)"}
     else:
         # Regular player leaving
-        await db.lobbies.update_one(
-            {"_id": lobby["_id"]},
-            {"$set": {"players": updated_players}}
+        result = await db.lobbies.update_one(
+            {
+                "_id": lobby["_id"],
+                "players.user_id": user_id
+            },
+            {
+                "$set": {"players": updated_players}
+            }
         )
+        
+        if result.modified_count == 0:
+            # Player might have already left
+            pass
+            
         return {"message": "Left lobby"}
 
 @router.post("/matches", response_model=MatchPublic)

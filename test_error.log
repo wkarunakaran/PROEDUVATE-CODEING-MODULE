@@ -1,0 +1,3 @@
+Status: 500
+Error: Internal server error: name 'new_player' is not defined
+Response: {"detail":"Internal server error: name 'new_player' is not defined"}

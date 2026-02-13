@@ -10,14 +10,20 @@ from datetime import datetime
 # Configuration
 API_BASE = "http://localhost:8000"
 
+import random
+import string
+
+# Generate random suffix
+suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+
 # Test credentials (create these users first via the frontend or registration endpoint)
 USER1 = {
-    "username": "testuser1",
+    "username": f"testuser1_{suffix}",
     "password": "password123"
 }
 
 USER2 = {
-    "username": "testuser2", 
+    "username": f"testuser2_{suffix}",
     "password": "password123"
 }
 
@@ -26,7 +32,7 @@ def login(username, password):
     print(f"\n🔐 Logging in as {username}...")
     response = requests.post(
         f"{API_BASE}/auth/login",
-        data={
+        json={
             "username": username,
             "password": password
         }
@@ -34,10 +40,24 @@ def login(username, password):
     
     if response.status_code == 200:
         data = response.json()
-        print(f"   ✅ Login successful: {data['username']}")
+        print(f"   ✅ Login successful!")
         return data['access_token']
+    print(f"   ❌ Login failed: {response.status_code}")
+    # Try to register
+    print(f"   🆕 Attempting to register {username}...")
+    reg_response = requests.post(
+        f"{API_BASE}/auth/register",
+        json={
+            "username": username,
+            "password": password,
+            "preferred_language": "python"
+        }
+    )
+    if reg_response.status_code == 200:
+        print(f"   ✅ Registration successful! Logging in...")
+        return login(username, password) # Recursive call to login
     else:
-        print(f"   ❌ Login failed: {response.status_code} - {response.text}")
+        print(f"   ❌ Registration failed: {reg_response.text}")
         return None
 
 def create_lobby(token, game_mode="standard", max_players=5):
@@ -99,6 +119,8 @@ def join_lobby(token, game_id):
         print(f"   ❌ Failed to join lobby: {response.status_code}")
         error_detail = response.json().get('detail', 'Unknown error')
         print(f"      Error: {error_detail}")
+        with open("test_error.log", "w", encoding="utf-8") as f:
+            f.write(f"Status: {response.status_code}\nError: {error_detail}\nResponse: {response.text}")
         return False
 
 def get_lobby(token, game_id):

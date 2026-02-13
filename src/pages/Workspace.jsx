@@ -5,6 +5,7 @@ import MonacoEditorWrapper from "../components/MonacoEditorWrapper";
 import ProgressBar from "../components/ProgressBar";
 import LeaderboardTable from "../components/LeaderboardTable";
 import { API_BASE } from "../utils/api";
+import { useToast } from "../context/ToastContext";
 
 export default function Workspace({
   user,
@@ -14,6 +15,7 @@ export default function Workspace({
   currentLanguage,
   setCurrentLanguage,
 }) {
+  const { showToast } = useToast();
   const { id } = useParams();
   const problemId = Number(id);
 
@@ -71,7 +73,7 @@ export default function Workspace({
     return (
       <div>
         <h1 className="text-lg font-semibold mb-2">Problem not found</h1>
-        <p className="text-xs text-slate-400">Please go back and select again.</p>
+        <p className="text-xs text-muted-foreground">Please go back and select again.</p>
       </div>
     );
   }
@@ -150,7 +152,7 @@ export default function Workspace({
       const token = localStorage.getItem("token");
 
       if (!token) {
-        alert("Authentication required. Please login to run tests.");
+        showToast("Authentication required. Please login to run tests.", "error");
         setIsExecuting(false);
         return;
       }
@@ -169,7 +171,7 @@ export default function Workspace({
       });
 
       if (response.status === 401) {
-        alert("Session expired. Please login again to run tests.");
+        showToast("Session expired. Please login again to run tests.", "error");
         setIsExecuting(false);
         return;
       }
@@ -178,12 +180,12 @@ export default function Workspace({
       setTestResults(result);
 
       if (result.all_passed) {
-        alert(`All ${result.total} test cases passed!`);
+        showToast(`All ${result.total} test cases passed!`, "success");
       } else {
-        alert(`${result.passed}/${result.total} test cases passed. Check the results below.`);
+        showToast(`${result.passed}/${result.total} test cases passed. Check the results below.`, "warning");
       }
     } catch (error) {
-      alert(`Failed to run tests: ${error.message}`);
+      showToast(`Failed to run tests: ${error.message}`, "error");
     } finally {
       setIsExecuting(false);
     }
@@ -239,10 +241,9 @@ export default function Workspace({
       currentRound === 4 ? Boolean(allRoundsDone) : prevAttempt.finalCompleted;
 
     if (finalCompleted && !prevAttempt.finalCompleted) {
-      alert(
-        `Finished "${problem.title}" in ${total.toFixed(
-          1
-        )}s (${currentLanguage.toUpperCase()}).`
+      showToast(
+        `Finished "${problem.title}" in ${total.toFixed(1)}s (${currentLanguage.toUpperCase()}).`,
+        "success"
       );
     }
 
@@ -285,7 +286,7 @@ export default function Workspace({
 
       if (!userResponse.ok) {
         console.error("Failed to fetch user info, status:", userResponse.status);
-        alert("Warning: Could not authenticate. Progress not saved to database.");
+        showToast("Warning: Could not authenticate. Progress not saved to database.", "warning");
         if (currentRound < 4) setCurrentRound((r) => r + 1);
         return;
       }
@@ -319,14 +320,14 @@ export default function Workspace({
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error("Failed to save attempt. Status:", response.status, "Error:", errorData);
-        alert(`Warning: Progress was not saved to database. ${errorData.detail || 'Unknown error'}`);
+        showToast(`Warning: Progress was not saved to database. ${errorData.detail || 'Unknown error'}`, "warning");
       } else {
         const savedData = await response.json();
         console.log("[SUCCESS] Attempt saved successfully to database:", savedData);
       }
     } catch (err) {
       console.error("Failed to save attempt to database:", err);
-      alert("Warning: Progress was not saved to database. Error: " + err.message);
+      showToast(`Warning: Progress was not saved to database. Error: ${err.message}`, "warning");
     }
 
     if (currentRound < 4) setCurrentRound((r) => r + 1);
@@ -402,17 +403,17 @@ export default function Workspace({
 
   return (
     <div className="space-y-4 text-xs">
-      <div className="border border-slate-700 rounded-2xl p-4 flex flex-col md:flex-row justify-between gap-3">
+      <div className="border border-border rounded-2xl p-4 flex flex-col md:flex-row justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold mb-1">{problem.title}</h1>
-          <p className="text-[11px] text-slate-400">
+          <p className="text-[11px] text-muted-foreground">
             Problem #{problem.id} • Difficulty{" "}
             <span>{problem.difficulty}</span> • Language{" "}
             <span className="font-semibold">
               {currentLanguage.toUpperCase()}
             </span>
           </p>
-          <p className="text-[11px] text-slate-400 mt-1">
+          <p className="text-[11px] text-muted-foreground mt-1">
             Topics: {problem.topics.join(", ")} •{" "}
             <a
               href={problem.videoUrl}
@@ -434,8 +435,8 @@ export default function Workspace({
                   key={r}
                   onClick={() => setCurrentRound(r)}
                   className={`px-2.5 py-1 rounded-full border text-[11px] ${currentRound === r
-                      ? "border-emerald-500 bg-emerald-500/20 text-emerald-200"
-                      : "border-slate-600 bg-slate-900 text-slate-300"
+                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-200"
+                    : "border-border bg-muted text-muted-foreground"
                     } ${done ? "border-dashed" : ""}`}
                 >
                   R{r}
@@ -444,12 +445,12 @@ export default function Workspace({
             })}
           </div>
           <div className="text-[11px] text-slate-400">
-            Overall time: <span className="text-slate-100">{totalSeconds.toFixed(1)}s</span>
+            Overall time: <span className="text-foreground">{totalSeconds.toFixed(1)}s</span>
           </div>
         </div>
       </div>
 
-      <div className="border border-slate-700 rounded-2xl p-4">
+      <div className="border border-border rounded-2xl p-4">
         <div className="flex flex-col md:flex-row justify-between items-center gap-3">
           <div className="text-center flex-1">
             <div className="text-base md:text-lg font-bold mb-1">
@@ -458,24 +459,24 @@ export default function Workspace({
           </div>
           <div className="w-full md:w-64 space-y-2">
             <div className="flex gap-2">
-              <div className="flex-1 px-2 py-1 rounded-lg border border-emerald-500/60 bg-slate-950 text-[11px] text-center">
-                <div className="text-slate-400">Round time</div>
+              <div className="flex-1 px-2 py-1 rounded-lg border border-emerald-500/60 bg-card text-[11px] text-center">
+                <div className="text-muted-foreground">Round time</div>
                 <div className="text-sm font-semibold">
                   {elapsedSeconds.toFixed(1)}s
                 </div>
               </div>
-              <div className="flex-1 px-2 py-1 rounded-lg border border-emerald-500/60 bg-slate-950 text-[11px] text-center">
-                <div className="text-slate-400">Overall</div>
+              <div className="flex-1 px-2 py-1 rounded-lg border border-emerald-500/60 bg-card text-[11px] text-center">
+                <div className="text-muted-foreground">Overall</div>
                 <div className="text-sm font-semibold">
                   {totalSeconds.toFixed(1)}s
                 </div>
               </div>
             </div>
             <ProgressBar value={roundProgress} label="Round progress" big />
-            <div className="flex items-center justify-between text-[11px] text-slate-300">
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
               <span>Language</span>
               <select
-                className="bg-slate-900 border border-slate-700 rounded-full px-2 py-1 text-[11px]"
+                className="bg-muted border border-border rounded-full px-2 py-1 text-[11px]"
                 value={currentLanguage}
                 onChange={(e) => setCurrentLanguage(e.target.value)}
               >
@@ -520,13 +521,13 @@ export default function Workspace({
             />
 
             {/* Output box for all rounds */}
-            <div className="border border-slate-700 rounded-lg bg-slate-950 p-3 min-h-[120px]">
+            <div className="border border-border rounded-lg bg-card p-3 min-h-[120px]">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-[11px] font-semibold text-slate-300">Output</span>
+                <span className="text-[11px] font-semibold text-muted-foreground">Output</span>
                 {executionOutput && (
                   <button
                     onClick={() => setExecutionOutput(null)}
-                    className="text-[10px] text-slate-400 hover:text-slate-200"
+                    className="text-[10px] text-muted-foreground hover:text-foreground"
                   >
                     Clear
                   </button>
@@ -534,7 +535,7 @@ export default function Workspace({
               </div>
 
               {isExecuting ? (
-                <div className="text-[11px] text-slate-400 flex items-center gap-2">
+                <div className="text-[11px] text-muted-foreground flex items-center gap-2">
                   <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-500"></div>
                   Executing code...
                 </div>
@@ -547,7 +548,7 @@ export default function Workspace({
                       <span className="text-red-400 text-[11px] font-semibold flex items-center gap-1"><XCircle size={14} /> Error</span>
                     )}
                     {executionOutput.execution_time && (
-                      <span className="text-slate-500 text-[10px]">
+                      <span className="text-muted-foreground text-[10px]">
                         ({executionOutput.execution_time.toFixed(2)}s)
                       </span>
                     )}
@@ -555,8 +556,8 @@ export default function Workspace({
 
                   {executionOutput.output && (
                     <div>
-                      <div className="text-[10px] text-slate-400 mb-1">Output:</div>
-                      <pre className="text-[11px] text-slate-200 whitespace-pre-wrap font-mono bg-slate-900 p-2 rounded">
+                      <div className="text-[10px] text-muted-foreground mb-1">Output:</div>
+                      <pre className="text-[11px] text-foreground whitespace-pre-wrap font-mono bg-muted p-2 rounded">
                         {executionOutput.output}
                       </pre>
                     </div>
@@ -572,7 +573,7 @@ export default function Workspace({
                   )}
                 </div>
               ) : (
-                <div className="text-[11px] text-slate-500 italic">
+                <div className="text-[11px] text-muted-foreground italic">
                   Click "Run Code" to execute your code and see the output here
                 </div>
               )}
@@ -593,8 +594,8 @@ export default function Workspace({
                   </button>
                 </div>
                 {showReference && (
-                  <div className="p-2 rounded-lg border border-slate-700 bg-slate-950 text-[10px]">
-                    <pre className="text-slate-300 whitespace-pre overflow-x-auto">
+                  <div className="p-2 rounded-lg border border-border bg-card text-[10px]">
+                    <pre className="text-muted-foreground whitespace-pre overflow-x-auto">
                       {referenceCode}
                     </pre>
                   </div>
@@ -602,7 +603,7 @@ export default function Workspace({
                 <div className="text-[11px] font-semibold mt-3 mb-1">
                   Line-by-line explanation
                 </div>
-                <ul className="list-disc list-inside text-[11px] text-slate-300 space-y-1">
+                <ul className="list-disc list-inside text-[11px] text-muted-foreground space-y-1">
                   {explanations.map((exp, idx) => (
                     <li key={idx}>{exp}</li>
                   ))}
@@ -614,24 +615,24 @@ export default function Workspace({
             {currentRound === 2 && (
               <>
                 <div className="text-[11px] font-semibold mb-1">Debugging Challenge</div>
-                <div className="p-3 rounded-lg border border-orange-500/50 bg-orange-950/20 text-[11px] text-slate-300 space-y-2">
+                <div className="p-3 rounded-lg border border-orange-500/50 bg-orange-950/20 text-[11px] text-muted-foreground space-y-2">
                   <p className="font-semibold text-orange-300 flex items-center gap-2"><Bug size={16} /> Find and fix the bugs!</p>
                   <p>The code above has intentional errors. Debug it to make it work correctly.</p>
-                  <div className="mt-2 p-2 rounded bg-slate-900">
+                  <div className="mt-2 p-2 rounded bg-muted">
                     <div className="font-semibold text-[10px] mb-1">Sample Test:</div>
                     <div className="text-[10px]">
-                      <span className="text-slate-400">Input:</span> {problem.sampleTests[0]?.input}
+                      <span className="text-muted-foreground">Input:</span> {problem.sampleTests[0]?.input}
                     </div>
                     <div className="text-[10px]">
-                      <span className="text-slate-400">Expected:</span> {problem.sampleTests[0]?.expected}
+                      <span className="text-muted-foreground">Expected:</span> {problem.sampleTests[0]?.expected}
                     </div>
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-2">
+                  <p className="text-[10px] text-muted-foreground mt-2">
                     <span className="flex items-center gap-1"><Lightbulb size={12} /> Tip: Use "Test Run" to check your fixes</span>
                   </p>
                 </div>
                 <div className="text-[11px] font-semibold mt-3 mb-1">Hints</div>
-                <ul className="list-disc list-inside text-[11px] text-slate-300 space-y-1">
+                <ul className="list-disc list-inside text-[11px] text-muted-foreground space-y-1">
                   {explanations.map((exp, idx) => (
                     <li key={idx}>{exp}</li>
                   ))}
@@ -643,15 +644,15 @@ export default function Workspace({
             {currentRound === 3 && (
               <>
                 <div className="text-[11px] font-semibold mb-1">Blind Typing Challenge</div>
-                <div className="p-3 rounded-lg border border-purple-500/50 bg-purple-950/20 text-[11px] text-slate-300 space-y-2">
+                <div className="p-3 rounded-lg border border-purple-500/50 bg-purple-950/20 text-[11px] text-muted-foreground space-y-2">
                   <p className="font-semibold text-purple-300 flex items-center gap-2"><Keyboard size={16} /> Type from memory!</p>
                   <p>Write the complete solution without looking at the reference code.</p>
-                  <p className="text-[10px] text-slate-400 mt-2">
+                  <p className="text-[10px] text-muted-foreground mt-2">
                     This tests your understanding and muscle memory.
                   </p>
                 </div>
                 <div className="text-[11px] font-semibold mt-3 mb-1">Problem Requirements</div>
-                <ul className="list-disc list-inside text-[11px] text-slate-300 space-y-1">
+                <ul className="list-disc list-inside text-[11px] text-muted-foreground space-y-1">
                   {explanations.map((exp, idx) => (
                     <li key={idx}>{exp}</li>
                   ))}
@@ -665,21 +666,21 @@ export default function Workspace({
                 <div className="text-[11px] font-semibold mb-1">Test Cases</div>
                 <div className="space-y-2">
                   {problem.sampleTests.map((test, idx) => (
-                    <div key={idx} className="p-2 rounded-lg border border-slate-700 bg-slate-950 text-[10px]">
+                    <div key={idx} className="p-2 rounded-lg border border-border bg-card text-[10px]">
                       <div className="font-semibold mb-1">Test Case {idx + 1}</div>
-                      <div><span className="text-slate-400">Input:</span> {test.input}</div>
-                      <div><span className="text-slate-400">Expected:</span> {test.expected}</div>
+                      <div><span className="text-muted-foreground">Input:</span> {test.input}</div>
+                      <div><span className="text-muted-foreground">Expected:</span> {test.expected}</div>
                     </div>
                   ))}
                 </div>
 
                 {testResults && (
-                  <div className="mt-3 p-3 rounded-lg border border-slate-700 bg-slate-950">
+                  <div className="mt-3 p-3 rounded-lg border border-border bg-card">
                     <div className="text-[11px] font-semibold mb-2">
                       Test Results: {testResults.passed}/{testResults.total} Passed
                     </div>
                     {testResults.results.map((result, idx) => (
-                      <div key={idx} className="text-[10px] mb-2 p-2 rounded bg-slate-900">
+                      <div key={idx} className="text-[10px] mb-2 p-2 rounded bg-muted">
                         <div className="flex justify-between items-center mb-1">
                           <span className="font-semibold">Test {result.test_id}</span>
                           <span className={result.passed ? "text-green-400" : "text-red-400"}>
@@ -690,8 +691,8 @@ export default function Workspace({
                         </div>
                         {!result.passed && (
                           <>
-                            <div className="text-slate-400">Expected: {result.expected}</div>
-                            <div className="text-slate-400">Got: {result.actual}</div>
+                            <div className="text-muted-foreground">Expected: {result.expected}</div>
+                            <div className="text-muted-foreground">Got: {result.actual}</div>
                             {result.error && <div className="text-red-400 mt-1">{result.error}</div>}
                           </>
                         )}
@@ -704,7 +705,7 @@ export default function Workspace({
           </div>
         </div>
 
-        <div className="mt-4 flex justify-between items-center text-[11px] text-slate-400">
+        <div className="mt-4 flex justify-between items-center text-[11px] text-muted-foreground">
           <span>{roundDescriptions[currentRound]}</span>
           <div className="flex gap-2">
             {currentRound === 4 && (
@@ -727,11 +728,11 @@ export default function Workspace({
         </div>
       </div>
 
-      <div className="border border-slate-700 rounded-2xl p-4">
+      <div className="border border-border rounded-2xl p-4">
         <h2 className="text-sm font-semibold mb-1">
           Leaderboard — {problem.title}
         </h2>
-        <p className="text-[11px] text-slate-400 mb-2">
+        <p className="text-[11px] text-muted-foreground mb-2">
           Local-only scoreboard. A backend can later store this across all
           students.
         </p>

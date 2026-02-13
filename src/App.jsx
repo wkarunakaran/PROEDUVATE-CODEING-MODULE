@@ -25,10 +25,11 @@ import { initialProblems } from "./data/problems";
 import { computeUserStats } from "./utils/stats";
 import { API_BASE } from "./utils/api";
 
+import { ThemeProvider } from "./context/ThemeContext";
+import { ToastProvider } from "./context/ToastContext";
 const STORAGE_KEY = "codoai_v3_state";
 
 export default function App() {
-  const [theme, setTheme] = useState("dark");
   const [user, setUser] = useState(null);
   const [problems, setProblems] = useState(initialProblems);
   const [currentLanguage, setCurrentLanguage] = useState("python");
@@ -44,13 +45,6 @@ export default function App() {
       if (parsed.user) setUser(parsed.user);
       if (parsed.problems) setProblems(parsed.problems);
       if (parsed.currentLanguage) setCurrentLanguage(parsed.currentLanguage);
-      // Don't load attempts from localStorage anymore - will load from API
-      if (parsed.theme) {
-        setTheme(parsed.theme);
-        if (parsed.theme === "light") {
-          document.documentElement.classList.add("light-theme");
-        }
-      }
     } catch (err) {
       console.error("Failed to load state", err);
     } finally {
@@ -109,27 +103,18 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    // Only save user, problems, language, and theme to localStorage
+    // Only save user, problems, and language to localStorage
     // Attempts are stored in database
-    const state = { user, problems, currentLanguage, theme };
+    // Theme is handled by ThemeContext
+    const state = { user, problems, currentLanguage };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (err) {
       console.error("Failed to persist state", err);
     }
-  }, [user, problems, currentLanguage, theme]);
+  }, [user, problems, currentLanguage]);
 
-  const toggleTheme = () => {
-    setTheme((prev) => {
-      const next = prev === "dark" ? "light" : "dark";
-      if (next === "light") {
-        document.documentElement.classList.add("light-theme");
-      } else {
-        document.documentElement.classList.remove("light-theme");
-      }
-      return next;
-    });
-  };
+
 
   const handleLogin = async (username) => {
     const isAdmin = username.trim().toLowerCase() === "admin";
@@ -146,7 +131,7 @@ export default function App() {
 
         if (response.ok) {
           const userData = await response.json();
-          
+
           // Store userId and username in localStorage for lobby/match checks
           localStorage.setItem("userId", userData.id);
           localStorage.setItem("username", userData.username);
@@ -171,7 +156,7 @@ export default function App() {
     // Fallback to basic user object if API fails
     const fallbackUsername = username.trim();
     localStorage.setItem("username", fallbackUsername);
-    
+
     setUser({
       name: fallbackUsername,
       isAdmin,
@@ -184,12 +169,12 @@ export default function App() {
   const handleLogout = () => {
     setUser(null);
     setAttempts({});
-    
+
     // Clear user session data
     localStorage.removeItem("token");
     localStorage.removeItem("userId");
     localStorage.removeItem("username");
-    
+
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {

@@ -2,23 +2,25 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Gamepad2 } from "lucide-react";
 import { API_BASE } from "../utils/api";
+import { useToast } from "../context/ToastContext";
 
 export default function LobbyJoin() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [gameId, setGameId] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleJoinLobby = async (e) => {
     e.preventDefault();
     if (!gameId.trim()) {
-      alert("Please enter a Game ID");
+      showToast("Please enter a Game ID", "warning");
       return;
     }
 
     // Check authentication first
     const token = localStorage.getItem("token");
     if (!token) {
-      alert("You must be logged in to join a lobby. Please login first.");
+      showToast("You must be logged in to join a lobby. Please login first.", "error");
       navigate("/login");
       return;
     }
@@ -42,11 +44,11 @@ export default function LobbyJoin() {
         
         // Handle specific error cases
         if (res.status === 401) {
-          alert("Your session has expired. Please login again.");
+          showToast("Your session has expired. Please login again.", "error");
           navigate("/login");
           return;
         }
-        
+
         throw new Error(error.detail || "Failed to join lobby");
       }
 
@@ -57,25 +59,25 @@ export default function LobbyJoin() {
       navigate(`/lobby/${data.lobby.game_id}`);
     } catch (err) {
       console.error("Error joining lobby:", err);
-      alert(err.message || "Failed to join lobby. Check the Game ID and try again.");
+      showToast(err.message || "Failed to join lobby. Check the Game ID and try again.", "error");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center py-8 px-4">
+    <div className="min-h-screen bg-background flex items-center justify-center py-8 px-4">
       <div className="max-w-md w-full">
-        <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-8">
+        <div className="bg-card rounded-2xl shadow-2xl p-8 border border-border">
           <div className="text-center mb-8">
-            <Gamepad2 size={64} className="text-purple-400 mx-auto mb-4" />
-            <h1 className="text-4xl font-bold text-white mb-2">Join Game</h1>
-            <p className="text-gray-300">Enter the Game ID to join a lobby</p>
+            <Gamepad2 size={64} className="text-purple-500 mx-auto mb-4" />
+            <h1 className="text-4xl font-bold text-foreground mb-2">Join Game</h1>
+            <p className="text-muted-foreground">Enter the Game ID to join a lobby</p>
           </div>
 
           <form onSubmit={handleJoinLobby} className="space-y-6">
             <div>
-              <label className="block text-white font-semibold mb-2">
+              <label className="block text-foreground font-semibold mb-2">
                 Game ID
               </label>
               <input
@@ -84,10 +86,10 @@ export default function LobbyJoin() {
                 onChange={(e) => setGameId(e.target.value.toUpperCase())}
                 placeholder="ABC123"
                 maxLength="6"
-                className="w-full px-6 py-4 rounded-lg bg-white/10 border-2 border-white/20 text-white text-center text-3xl font-mono font-bold tracking-widest placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                className="w-full px-6 py-4 rounded-xl bg-input border border-input text-foreground text-center text-3xl font-mono font-bold tracking-widest placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
                 required
               />
-              <p className="text-gray-400 text-sm mt-2 text-center">
+              <p className="text-muted-foreground text-sm mt-2 text-center">
                 Enter the 6-character code shared by the host
               </p>
             </div>
@@ -96,26 +98,26 @@ export default function LobbyJoin() {
               <button
                 type="submit"
                 disabled={loading || !gameId.trim()}
-                className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-4 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                className="flex-1 bg-primary text-primary-foreground font-bold py-4 rounded-xl hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
               >
-                {loading ? "Joining..." : "Join Lobby"}
+                {loading ? "Joining..." : "Join Game"}
               </button>
               <button
                 type="button"
                 onClick={() => navigate("/competitive")}
-                className="px-6 py-4 bg-white/10 text-white font-semibold rounded-lg hover:bg-white/20 transition-all border border-white/20"
+                className="px-6 py-4 bg-secondary text-secondary-foreground font-semibold rounded-xl hover:bg-secondary/80 transition-all"
               >
-                Back
+                Cancel
               </button>
             </div>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-white/20">
+          <div className="mt-8 pt-6 border-t border-border">
             <div className="text-center">
               <p className="text-gray-400 mb-3">Don't have a Game ID?</p>
               <button
                 onClick={() => navigate("/lobby/create")}
-                className="text-purple-400 hover:text-purple-300 font-semibold underline"
+                className="text-purple-600 dark:text-purple-400 hover:text-purple-500 dark:hover:text-purple-300 font-semibold underline"
               >
                 Create Your Own Game
               </button>

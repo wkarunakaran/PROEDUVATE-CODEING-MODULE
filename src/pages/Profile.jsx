@@ -22,14 +22,14 @@ export default function Profile({
 
   return (
     <div>
-      <div className="border border-slate-700 rounded-2xl p-4 flex flex-col md:flex-row gap-4">
+      <div className="border border-border rounded-2xl p-4 flex flex-col md:flex-row gap-4">
         <div className="flex items-center gap-3 flex-1">
           <div className="h-12 w-12 rounded-full bg-gradient-to-tr from-emerald-400 to-sky-400 flex items-center justify-center text-lg font-bold text-slate-950">
             {user?.name?.[0]?.toUpperCase() || "U"}
           </div>
           <div>
             <div className="text-lg font-semibold">{user?.name}</div>
-            <div className="text-[11px] text-slate-400">
+            <div className="text-[11px] text-muted-foreground">
               Level {stats.level} • {stats.xp} XP • Preferred{" "}
               {user?.preferredLanguage?.toUpperCase()}
             </div>
@@ -37,8 +37,8 @@ export default function Profile({
         </div>
 
         <div className="grid sm:grid-cols-2 gap-3 text-xs flex-1">
-          <div className="border border-slate-700 rounded-xl p-3">
-            <div className="text-slate-400 mb-1">
+          <div className="border border-border rounded-xl p-3">
+            <div className="text-muted-foreground mb-1">
               Problems completed ({currentLanguage.toUpperCase()})
             </div>
             <div className="font-semibold">
@@ -50,10 +50,10 @@ export default function Profile({
               }
             />
           </div>
-          <div className="border border-slate-700 rounded-xl p-3">
-            <div className="text-slate-400 mb-1">Total time spent</div>
+          <div className="border border-border rounded-xl p-3">
+            <div className="text-muted-foreground mb-1">Total time spent</div>
             <div className="font-semibold">{totalTime.toFixed(1)}s</div>
-            <div className="text-[11px] text-slate-400 mt-1">
+            <div className="text-[11px] text-muted-foreground mt-1">
               Time is tracked per round once you start typing.
             </div>
           </div>
@@ -62,7 +62,7 @@ export default function Profile({
 
       <AchievementsPanel stats={stats} />
 
-      <div className="border border-slate-700 rounded-2xl p-4 mt-4 text-xs">
+      <div className="border border-border rounded-2xl p-4 mt-4 text-xs">
         <h2 className="text-sm font-semibold mb-2">
           Per-problem progress ({currentLanguage.toUpperCase()})
         </h2>
@@ -78,11 +78,11 @@ export default function Profile({
             return (
               <div
                 key={p.id}
-                className="flex justify-between gap-3 border border-slate-700 rounded-xl px-3 py-2"
+                className="flex justify-between gap-3 border border-border rounded-xl px-3 py-2"
               >
                 <div>
-                  <div className="font-semibold text-slate-100">{p.title}</div>
-                  <div className="text-[11px] text-slate-400">
+                  <div className="font-semibold text-foreground">{p.title}</div>
+                  <div className="text-[11px] text-muted-foreground">
                     Difficulty: {p.difficulty}
                   </div>
                 </div>
