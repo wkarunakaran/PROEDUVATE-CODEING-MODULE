@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 
 import Home from "./pages/Home";
@@ -13,6 +13,8 @@ import CompetitiveMatch from "./pages/CompetitiveMatch";
 import LobbyCreate from "./pages/LobbyCreate";
 import LobbyJoin from "./pages/LobbyJoin";
 import LobbyRoom from "./pages/LobbyRoom";
+import QuizMatch from "./pages/QuizMatch";
+import QuizResults from "./pages/QuizResults";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
@@ -149,7 +151,7 @@ export default function App() {
           localStorage.setItem("userId", userData.id);
           localStorage.setItem("username", userData.username);
           
-          console.log("✅ User logged in:", { id: userData.id, username: userData.username });
+          console.log("[SUCCESS] User logged in:", { id: userData.id, username: userData.username });
           
           setUser({
             id: userData.id,
@@ -218,125 +220,172 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-slate-950 text-slate-100 transition-colors duration-300">
-        {window.location.pathname !== "/" && (
-          <Navbar
-            user={user}
-            onLogout={handleLogout}
-            theme={theme}
-            toggleTheme={toggleTheme}
-          />
-        )}
-
-        {user && (
-          <div className="fixed top-16 right-4 z-30">
-            <LanguageSelector
-              current={currentLanguage}
-              onChange={setCurrentLanguage}
-            />
-          </div>
-        )}
-
-        <div className="max-w-6xl mx-auto px-4 py-6">
-          <Routes>
-            <Route path="/" element={<Home user={user} stats={stats} />} />
-            <Route
-              path="/login"
-              element={<Login onLogin={handleLogin} />}
-            />
-            <Route
-              path="/register"
-              element={<Register onLogin={handleLogin} />}
-            />
-            <Route
-              path="/dashboard"
-              element={requireAuth(
-                <Dashboard
-                  user={user}
-                  problems={problems}
-                  attempts={attempts}
-                  currentLanguage={currentLanguage}
-                  stats={stats}
-                />
-              )}
-            />
-            <Route
-              path="/profile"
-              element={requireAuth(
-                <Profile
-                  user={user}
-                  attempts={attempts}
-                  problems={problems}
-                  currentLanguage={currentLanguage}
-                  stats={stats}
-                />
-              )}
-            />
-            <Route
-              path="/problems"
-              element={requireAuth(
-                <Problems
-                  problems={problems}
-                  attempts={attempts}
-                  currentLanguage={currentLanguage}
-                />
-              )}
-            />
-            <Route
-              path="/workspace/:id"
-              element={requireAuth(
-                <Workspace
-                  user={user}
-                  problems={problems}
-                  attempts={attempts}
-                  setAttempts={setAttempts}
-                  currentLanguage={currentLanguage}
-                  setCurrentLanguage={setCurrentLanguage}
-                />
-              )}
-            />
-            <Route
-              path="/competitive"
-              element={requireAuth(
-                <Competitive attempts={attempts} problems={problems} stats={stats} />
-              )}
-            />
-            <Route
-              path="/competitive/match/:matchId"
-              element={requireAuth(
-                <CompetitiveMatch />
-              )}
-            />
-            <Route
-              path="/lobby/create"
-              element={requireAuth(<LobbyCreate />)}
-            />
-            <Route
-              path="/lobby/join"
-              element={requireAuth(<LobbyJoin />)}
-            />
-            <Route
-              path="/lobby/:gameId"
-              element={requireAuth(<LobbyRoom />)}
-            />
-            <Route
-              path="/competitive/:matchId"
-              element={requireAuth(<CompetitiveMatch />)}
-            />
-            <Route
-              path="/admin"
-              element={requireAuth(
-                user?.isAdmin ? (
-                  <Admin problems={problems} setProblems={setProblems} />
-                ) : (
-                  <Navigate to="/dashboard" replace />
-                )
-              )}
-            />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </div>
-      </div>
+      <AppContent 
+        user={user} 
+        onLogin={handleLogin}
+        onLogout={handleLogout} 
+        theme={theme} 
+        toggleTheme={toggleTheme}
+        problems={problems}
+        setProblems={setProblems}
+        attempts={attempts}
+        setAttempts={setAttempts}
+        currentLanguage={currentLanguage}
+        setCurrentLanguage={setCurrentLanguage}
+        stats={stats}
+        requireAuth={requireAuth}
+      />
     </BrowserRouter>
+  );
+}
+
+function AppContent({
+  user,
+  onLogin,
+  onLogout,
+  theme,
+  toggleTheme,
+  problems,
+  setProblems,
+  attempts,
+  setAttempts,
+  currentLanguage,
+  setCurrentLanguage,
+  stats,
+  requireAuth
+}) {
+  const location = useLocation();
+  
+  // Dynamically check if current page is a game page - reactive to route changes
+  const isGamePage = location.pathname.match(/\/(competitive\/match\/|quiz\/|competitive\/)[^/]+/);
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 transition-colors duration-300">
+      {location.pathname !== "/" && !isGamePage && (
+        <Navbar
+          user={user}
+          onLogout={onLogout}
+          theme={theme}
+          toggleTheme={toggleTheme}
+        />
+      )}
+
+      {user && !isGamePage && (
+        <div className="fixed top-16 right-4 z-30">
+          <LanguageSelector
+            current={currentLanguage}
+            onChange={setCurrentLanguage}
+          />
+        </div>
+      )}
+
+      <div className={isGamePage ? "w-full h-screen" : "max-w-6xl mx-auto px-4 py-6"}>
+        <Routes>
+          <Route path="/" element={<Home user={user} stats={stats} />} />
+          <Route
+            path="/login"
+            element={<Login onLogin={onLogin} />}
+          />
+          <Route
+            path="/register"
+            element={<Register onLogin={onLogin} />}
+          />
+          <Route
+            path="/dashboard"
+            element={requireAuth(
+              <Dashboard
+                user={user}
+                problems={problems}
+                attempts={attempts}
+                currentLanguage={currentLanguage}
+                stats={stats}
+              />
+            )}
+          />
+          <Route
+            path="/profile"
+            element={requireAuth(
+              <Profile
+                user={user}
+                attempts={attempts}
+                problems={problems}
+                currentLanguage={currentLanguage}
+                stats={stats}
+              />
+            )}
+          />
+          <Route
+            path="/problems"
+            element={requireAuth(
+              <Problems
+                problems={problems}
+                attempts={attempts}
+                currentLanguage={currentLanguage}
+              />
+            )}
+          />
+          <Route
+            path="/workspace/:id"
+            element={requireAuth(
+              <Workspace
+                user={user}
+                problems={problems}
+                attempts={attempts}
+                setAttempts={setAttempts}
+                currentLanguage={currentLanguage}
+                setCurrentLanguage={setCurrentLanguage}
+              />
+            )}
+          />
+          <Route
+            path="/competitive"
+            element={requireAuth(
+              <Competitive attempts={attempts} problems={problems} stats={stats} />
+            )}
+          />
+          <Route
+            path="/competitive/match/:matchId"
+            element={requireAuth(
+              <CompetitiveMatch />
+            )}
+          />
+          <Route
+            path="/lobby/create"
+            element={requireAuth(<LobbyCreate />)}
+          />
+          <Route
+            path="/lobby/join"
+            element={requireAuth(<LobbyJoin />)}
+          />
+          <Route
+            path="/lobby/:gameId"
+            element={requireAuth(<LobbyRoom />)}
+          />
+          <Route
+            path="/competitive/:matchId"
+            element={requireAuth(<CompetitiveMatch />)}
+          />
+          <Route
+            path="/quiz/:matchId"
+            element={requireAuth(<QuizMatch />)}
+          />
+          <Route
+            path="/quiz-results/:matchId"
+            element={requireAuth(<QuizResults />)}
+          />
+          <Route
+            path="/admin"
+            element={requireAuth(
+              user?.isAdmin ? (
+                <Admin problems={problems} setProblems={setProblems} />
+              ) : (
+                <Navigate to="/dashboard" replace />
+              )
+            )}
+          />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </div>
+    </div>
   );
 }

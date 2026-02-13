@@ -337,6 +337,125 @@ def generate_game_id() -> str:
     """Generate a unique 6-character game ID for lobby"""
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
+async def create_quiz_lobby(db, lobby_in: LobbyCreate, current_user):
+    """Create a Code Quiz lobby with AI-generated questions"""
+    
+    # Validate quiz-specific fields
+    if not lobby_in.quiz_language:
+        raise HTTPException(status_code=400, detail="quiz_language is required for Code Quiz mode")
+    
+    if not lobby_in.quiz_question_count:
+        raise HTTPException(status_code=400, detail="quiz_question_count is required for Code Quiz mode")
+    
+    if lobby_in.quiz_language not in ["python", "java", "cpp"]:
+        raise HTTPException(status_code=400, detail="quiz_language must be python, java, or cpp")
+    
+    if lobby_in.quiz_question_count not in [5, 10, 15, 20, 30, 40, 50, 60]:
+        raise HTTPException(status_code=400, detail="quiz_question_count must be 5, 10, 15, 20, 30, 40, 50, or 60")
+    
+    # Auto-calculate time limit (30 seconds per question)
+    lobby_in.time_limit_seconds = lobby_in.quiz_question_count * 30
+    
+    # Validate max_players (2-15)
+    if lobby_in.max_players < 2 or lobby_in.max_players > 15:
+        raise HTTPException(status_code=400, detail="Max players must be between 2 and 15")
+    
+    print(f"🎯 Creating Code Quiz lobby:")
+    print(f"   Language: {lobby_in.quiz_language}")
+    print(f"   Questions: {lobby_in.quiz_question_count}")
+    print(f"   Time limit: {lobby_in.time_limit_seconds}s ({lobby_in.time_limit_seconds // 60} minutes)")
+    
+    # Generate quiz questions
+    try:
+        quiz_questions = await generate_quiz_questions(
+            db,
+            lobby_in.quiz_language,
+            lobby_in.quiz_question_count
+        )
+        
+        if len(quiz_questions) < lobby_in.quiz_question_count:
+            print(f"⚠️ Warning: Only generated {len(quiz_questions)}/{lobby_in.quiz_question_count} questions")
+        
+        # Clean questions for JSON serialization (remove MongoDB ObjectIds)
+        cleaned_questions = []
+        for q in quiz_questions:
+            cleaned_q = {k: v for k, v in q.items() if k != '_id'}
+            # Convert datetime to ISO string
+            if 'created_at' in cleaned_q and cleaned_q['created_at']:
+                cleaned_q['created_at'] = cleaned_q['created_at'].isoformat() if hasattr(cleaned_q['created_at'], 'isoformat') else str(cleaned_q['created_at'])
+            if 'last_used' in cleaned_q and cleaned_q['last_used']:
+                cleaned_q['last_used'] = cleaned_q['last_used'].isoformat() if hasattr(cleaned_q['last_used'], 'isoformat') else str(cleaned_q['last_used'])
+            cleaned_questions.append(cleaned_q)
+        
+    except Exception as e:
+        print(f"❌ Failed to generate quiz questions: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate quiz questions: {str(e)}"
+        )
+    
+    # Generate unique game ID
+    game_id = generate_game_id()
+    
+    # Ensure game_id is unique
+    max_attempts = 10
+    attempt = 0
+    while await db.lobbies.find_one({"game_id": game_id, "status": {"$ne": "completed"}}) and attempt < max_attempts:
+        game_id = generate_game_id()
+        attempt += 1
+    
+    if attempt >= max_attempts:
+        raise HTTPException(status_code=500, detail="Failed to generate unique game ID")
+    
+    # Create host player state
+    host_player = {
+        "user_id": current_user["id"],
+        "username": current_user["username"],
+        "code": "",
+        "completed": False,
+        "time_elapsed": 0.0,
+        "used_hints": False,
+        "submission_time": None,
+        "score": 0,
+        "rank": None,
+        # Quiz-specific fields
+        "quiz_answers": {},
+        "quiz_score": None,
+        "quiz_correct_count": None,
+        "quiz_time_taken": None,
+        "quiz_time_bonus": None
+    }
+    
+    # Create lobby document
+    lobby_doc = {
+        "game_id": game_id,
+        "lobby_name": lobby_in.lobby_name or f"{current_user['username']}'s Quiz",
+        "host_id": current_user["id"],
+        "host_username": current_user["username"],
+        "game_mode": "code_quiz",
+        "problem_id": None,  # Not used for quiz mode
+        "time_limit_seconds": lobby_in.time_limit_seconds,
+        "max_players": lobby_in.max_players,
+        "players": [host_player],
+        # Quiz-specific fields
+        "quiz_language": lobby_in.quiz_language,
+        "quiz_question_count": lobby_in.quiz_question_count,
+        "quiz_questions": cleaned_questions,
+        "status": "waiting",
+        "created_at": datetime.utcnow(),
+        "started_at": None,
+        "completed_at": None,
+        "winner_id": None,
+        "winners": []
+    }
+    
+    result = await db.lobbies.insert_one(lobby_doc)
+    lobby_doc["id"] = str(result.inserted_id)
+    
+    print(f"✅ Created Code Quiz lobby: {game_id}")
+    
+    return LobbyPublic(**lobby_doc)
+
 @router.post("/lobby/create", response_model=LobbyPublic)
 async def create_lobby(
     lobby_in: LobbyCreate,
@@ -344,6 +463,10 @@ async def create_lobby(
 ):
     """Create a new multiplayer lobby that others can join - selects random problem from pool"""
     db = get_database()
+    
+    # Handle Code Quiz mode separately
+    if lobby_in.game_mode == "code_quiz":
+        return await create_quiz_lobby(db, lobby_in, current_user)
     
     # Map game modes to their competitive_mode values
     mode_mapping = {
@@ -672,7 +795,7 @@ async def start_lobby(
     # Create a match from the lobby
     match_doc = {
         "game_id": game_id.upper(),
-        "problem_id": lobby["problem_id"],
+        "problem_id": lobby.get("problem_id"),
         "game_mode": lobby["game_mode"],
         "buggy_code": lobby.get("buggy_code"),
         "host_id": lobby["host_id"],
@@ -686,6 +809,12 @@ async def start_lobby(
         "started_at": datetime.utcnow(),
         "completed_at": None
     }
+    
+    # Add quiz-specific fields if Code Quiz mode
+    if lobby["game_mode"] == "code_quiz":
+        match_doc["quiz_language"] = lobby.get("quiz_language")
+        match_doc["quiz_question_count"] = lobby.get("quiz_question_count")
+        match_doc["quiz_questions"] = lobby.get("quiz_questions", [])
     
     result = await db.matches.insert_one(match_doc)
     match_id = str(result.inserted_id)
@@ -1498,6 +1627,59 @@ async def use_hint(
     
     return {"message": "Hint used (XP bonus reduced)"}
 
+@router.post("/matches/{match_id}/leave")
+async def leave_match(match_id: str, current_user: dict = Depends(get_current_user)):
+    """Leave/forfeit from a competitive match"""
+    db = get_database()
+    try:
+        match_oid = ObjectId(match_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid match id")
+    
+    match = await db.matches.find_one({"_id": match_oid})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    
+    if match.get("status") == "completed":
+        raise HTTPException(status_code=400, detail="Match is already completed")
+    
+    user_id = current_user["id"]
+    is_multiplayer = match.get("players") is not None
+    
+    if is_multiplayer:
+        players = match.get("players", [])
+        player_index = None
+        for idx, player in enumerate(players):
+            if player["user_id"] == user_id:
+                player_index = idx
+                break
+        
+        if player_index is None:
+            raise HTTPException(status_code=403, detail="Not a participant")
+        
+        await db.matches.update_one({"_id": match_oid}, {"$set": {f"players.{player_index}.completed": True}})
+    else:
+        player1_id = match.get("player1", {}).get("user_id")
+        player2_id = match.get("player2", {}).get("user_id")
+        
+        if user_id == player1_id:
+            winner_id = player2_id
+        elif user_id == player2_id:
+            winner_id = player1_id
+        else:
+            raise HTTPException(status_code=403, detail="Not a participant")
+        
+        await db.matches.update_one(
+            {"_id": match_oid},
+            {"$set": {
+                "status": "completed",
+                "winner_id": winner_id,
+                "completed_at": datetime.utcnow()
+            }}
+        )
+    
+    return {"message": "Left match successfully"}
+
 @router.post("/matchmaking")
 async def find_match(
     request: MatchmakingRequest,
@@ -1819,4 +2001,417 @@ async def generate_random_problem(
     return {
         "message": "Problem generated successfully",
         "problem": problem_doc
+    }
+
+
+# ============================================================================
+# CODE QUIZ MODE ENDPOINTS
+# ============================================================================
+
+from app.services.quiz_generator import generate_quiz_questions, calculate_quiz_score
+from app.schemas.competitive import QuizSubmitResponse, QuizQuestion, QuizResultDetail
+
+@router.post("/matches/{match_id}/submit-quiz", response_model=QuizSubmitResponse)
+async def submit_quiz(
+    match_id: str,
+    submission: MatchSubmit,
+    current_user = Depends(get_current_user)
+):
+    """Submit quiz answers for Code Quiz mode"""
+    db = get_database()
+    
+    print(f"🎯 Quiz submission received:")
+    print(f"   Match ID: {match_id}")
+    print(f"   User: {current_user['username']}")
+    print(f"   Answers: {submission.quiz_answers}")
+    print(f"   Time taken: {submission.quiz_time_taken}")
+    
+    try:
+        match_oid = ObjectId(match_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid match id")
+    
+    match = await db.matches.find_one({"_id": match_oid})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    
+    if match.get("game_mode") != "code_quiz":
+        raise HTTPException(status_code=400, detail="This endpoint is only for Code Quiz mode")
+    
+    if match["status"] != "active":
+        raise HTTPException(status_code=400, detail="Match is not active")
+    
+    user_id = current_user["id"]
+    
+    # Find player in multiplayer match
+    players = match.get("players", [])
+    player_index = None
+    
+    for idx, player in enumerate(players):
+        if player.get("user_id") == user_id:
+            player_index = idx
+            break
+    
+    if player_index is None:
+        raise HTTPException(status_code=403, detail="You are not a participant in this match")
+    
+    # Check if already submitted
+    if players[player_index].get("completed"):
+        raise HTTPException(status_code=400, detail="You have already submitted your quiz")
+    
+    # Get quiz questions from match
+    quiz_questions = match.get("quiz_questions", [])
+    if not quiz_questions:
+        raise HTTPException(status_code=500, detail="Quiz questions not found")
+    
+    # Validate submission
+    if not submission.quiz_answers:
+        raise HTTPException(status_code=400, detail="No answers provided")
+    
+    if not submission.quiz_time_taken:
+        raise HTTPException(status_code=400, detail="Time taken not provided")
+    
+    # Convert quiz_answers keys to strings (MongoDB requires string keys)
+    quiz_answers_str_keys = {str(k): v for k, v in submission.quiz_answers.items()}
+    
+    # Calculate score
+    time_limit = match.get("time_limit_seconds", 300)
+    score_data = calculate_quiz_score(
+        submission.quiz_answers,  # Use original for calculation
+        quiz_questions,
+        submission.quiz_time_taken,
+        time_limit
+    )
+    
+    # Update player data (use string keys for MongoDB)
+    update_data = {
+        f"players.{player_index}.quiz_answers": quiz_answers_str_keys,
+        f"players.{player_index}.quiz_score": score_data["score"],
+        f"players.{player_index}.quiz_correct_count": score_data["correct"],
+        f"players.{player_index}.quiz_time_taken": submission.quiz_time_taken,
+        f"players.{player_index}.quiz_time_bonus": score_data["time_bonus"],
+        f"players.{player_index}.completed": True,
+        f"players.{player_index}.submission_time": datetime.utcnow(),
+        f"players.{player_index}.score": score_data["score"]
+    }
+    
+    await db.matches.update_one(
+        {"_id": match_oid},
+        {"$set": update_data}
+    )
+    
+    # Check if all players completed or time expired
+    updated_match = await db.matches.find_one({"_id": match_oid})
+    all_players = updated_match.get("players", [])
+    completed_players = [p for p in all_players if p.get("completed")]
+    
+    show_leaderboard = len(completed_players) == len(all_players)
+    
+    # If all completed, calculate final rankings
+    leaderboard = None
+    if show_leaderboard:
+        # Sort by score (descending), then by time (ascending)
+        ranked_players = sorted(
+            all_players,
+            key=lambda p: (-p.get("quiz_score", 0), p.get("quiz_time_taken", float('inf')))
+        )
+        
+        # Assign ranks
+        for rank, player in enumerate(ranked_players, 1):
+            await db.matches.update_one(
+                {
+                    "_id": match_oid,
+                    "players.user_id": player["user_id"]
+                },
+                {"$set": {"players.$.rank": rank}}
+            )
+        
+        # Get top 3 winners
+        winners = [p["user_id"] for p in ranked_players[:3]]
+        winner_id = winners[0] if winners else None
+        
+        # Mark match as completed
+        await db.matches.update_one(
+            {"_id": match_oid},
+            {
+                "$set": {
+                    "status": "completed",
+                    "completed_at": datetime.utcnow(),
+                    "winner_id": winner_id,
+                    "winners": winners
+                }
+            }
+        )
+        
+        # Build leaderboard
+        leaderboard = [
+            {
+                "user_id": p["user_id"],
+                "username": p["username"],
+                "score": p.get("quiz_score", 0),
+                "correct": p.get("quiz_correct_count", 0),
+                "time_taken": p.get("quiz_time_taken", 0),
+                "rank": rank
+            }
+            for rank, p in enumerate(ranked_players, 1)
+        ]
+        
+        # Update player stats (XP, rating for top 3)
+        for rank, player in enumerate(ranked_players[:3], 1):
+            if player["user_id"] != "bot":
+                xp_gain = 100 if rank == 1 else (50 if rank == 2 else 25)
+                rating_gain = 30 if rank == 1 else (15 if rank == 2 else 5)
+                
+                await db.users.update_one(
+                    {"_id": ObjectId(player["user_id"])},
+                    {
+                        "$inc": {
+                            "xp": xp_gain,
+                            "rating": rating_gain
+                        }
+                    }
+                )
+    
+    return QuizSubmitResponse(
+        score=score_data["score"],
+        correct=score_data["correct"],
+        total=score_data["total"],
+        time_bonus=score_data["time_bonus"],
+        rank=None if not show_leaderboard else next(
+            (i + 1 for i, p in enumerate(sorted(all_players, key=lambda x: (-x.get("quiz_score", 0), x.get("quiz_time_taken", float('inf'))))) 
+             if p["user_id"] == user_id),
+            None
+        ),
+        show_leaderboard=show_leaderboard,
+        players_finished=len(completed_players),
+        total_players=len(all_players),
+        leaderboard=leaderboard
+    )
+
+
+@router.get("/matches/{match_id}/quiz-results")
+async def get_quiz_results(
+    match_id: str,
+    current_user = Depends(get_current_user)
+):
+    """Get detailed quiz results with correct answers and explanations"""
+    db = get_database()
+    
+    try:
+        match_oid = ObjectId(match_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid match id")
+    
+    match = await db.matches.find_one({"_id": match_oid})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    
+    if match.get("game_mode") != "code_quiz":
+        raise HTTPException(status_code=400, detail="This endpoint is only for Code Quiz mode")
+    
+    user_id = current_user["id"]
+    
+    # Find player
+    players = match.get("players", [])
+    player_data = None
+    
+    for player in players:
+        if player.get("user_id") == user_id:
+            player_data = player
+            break
+    
+    if not player_data:
+        raise HTTPException(status_code=403, detail="You are not a participant in this match")
+    
+    if not player_data.get("completed"):
+        raise HTTPException(status_code=400, detail="You haven't submitted the quiz yet")
+    
+    # Get quiz questions and player answers
+    quiz_questions = match.get("quiz_questions", [])
+    player_answers = player_data.get("quiz_answers", {})
+    
+    # Build detailed results
+    results = []
+    for idx, question in enumerate(quiz_questions):
+        player_answer = player_answers.get(str(idx))
+        correct_answer = question.get("correct_answer")
+        is_correct = player_answer == correct_answer if player_answer is not None else False
+        
+        results.append(QuizResultDetail(
+            id=str(question.get("_id", idx)),
+            question=question.get("question", ""),
+            code=question.get("code"),
+            options=question.get("options", []),
+            correct_answer=correct_answer,
+            player_answer=player_answer,
+            is_correct=is_correct,
+            explanation=question.get("explanation", ""),
+            question_type=question.get("question_type", ""),
+            difficulty=question.get("difficulty", "")
+        ))
+    
+    # Calculate performance by difficulty and type
+    score_breakdown = {
+        "by_difficulty": {},
+        "by_type": {}
+    }
+    
+    for idx, question in enumerate(quiz_questions):
+        difficulty = question.get("difficulty", "unknown")
+        question_type = question.get("question_type", "unknown")
+        player_answer = player_answers.get(str(idx))
+        is_correct = player_answer == question.get("correct_answer") if player_answer is not None else False
+        
+        # By difficulty
+        if difficulty not in score_breakdown["by_difficulty"]:
+            score_breakdown["by_difficulty"][difficulty] = {"correct": 0, "total": 0}
+        score_breakdown["by_difficulty"][difficulty]["total"] += 1
+        if is_correct:
+            score_breakdown["by_difficulty"][difficulty]["correct"] += 1
+        
+        # By type
+        if question_type not in score_breakdown["by_type"]:
+            score_breakdown["by_type"][question_type] = {"correct": 0, "total": 0}
+        score_breakdown["by_type"][question_type]["total"] += 1
+        if is_correct:
+            score_breakdown["by_type"][question_type]["correct"] += 1
+    
+    return {
+        "questions": results,
+        "score_breakdown": score_breakdown
+    }
+
+
+@router.post("/matches/{match_id}/save-progress")
+async def save_quiz_progress(
+    match_id: str,
+    submission: MatchSubmit,
+    current_user = Depends(get_current_user)
+):
+    """Auto-save quiz progress (for 30+ question quizzes)"""
+    db = get_database()
+    
+    try:
+        match_oid = ObjectId(match_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid match id")
+    
+    match = await db.matches.find_one({"_id": match_oid})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    
+    if match.get("game_mode") != "code_quiz":
+        raise HTTPException(status_code=400, detail="This endpoint is only for Code Quiz mode")
+    
+    if match["status"] != "active":
+        raise HTTPException(status_code=400, detail="Match is not active")
+    
+    user_id = current_user["id"]
+    
+    # Find player
+    players = match.get("players", [])
+    player_index = None
+    
+    for idx, player in enumerate(players):
+        if player.get("user_id") == user_id:
+            player_index = idx
+            break
+    
+    if player_index is None:
+        raise HTTPException(status_code=403, detail="You are not a participant in this match")
+    
+    # Check if already completed
+    if players[player_index].get("completed"):
+        return {"message": "Quiz already submitted", "saved": False}
+    
+    # Save progress (answers and current question)
+    update_data = {
+        f"players.{player_index}.quiz_answers": submission.quiz_answers or {},
+        f"players.{player_index}.quiz_current_question": submission.quiz_current_question or 0,
+        f"players.{player_index}.last_saved_at": datetime.utcnow()
+    }
+    
+    await db.matches.update_one(
+        {"_id": match_oid},
+        {"$set": update_data}
+    )
+    
+    return {
+        "message": "Progress saved",
+        "saved": True,
+        "answers_count": len(submission.quiz_answers or {}),
+        "current_question": submission.quiz_current_question or 0
+    }
+
+
+@router.get("/matches/{match_id}/questions")
+async def get_quiz_questions_chunk(
+    match_id: str,
+    start: int = Query(0, ge=0),
+    end: int = Query(10, ge=1),
+    current_user = Depends(get_current_user)
+):
+    """Get a chunk of quiz questions for lazy loading (50-60 question quizzes)"""
+    db = get_database()
+    
+    try:
+        match_oid = ObjectId(match_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid match id")
+    
+    match = await db.matches.find_one({"_id": match_oid})
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    
+    if match.get("game_mode") != "code_quiz":
+        raise HTTPException(status_code=400, detail="This endpoint is only for Code Quiz mode")
+    
+    user_id = current_user["id"]
+    
+    # Verify player is in match
+    players = match.get("players", [])
+    is_participant = any(p.get("user_id") == user_id for p in players)
+    
+    if not is_participant:
+        raise HTTPException(status_code=403, detail="You are not a participant in this match")
+    
+    # Get quiz questions
+    quiz_questions = match.get("quiz_questions", [])
+    total_questions = len(quiz_questions)
+    
+    # Validate range
+    if start >= total_questions:
+        return {
+            "questions": [],
+            "start": start,
+            "end": start,
+            "total": total_questions,
+            "has_more": False
+        }
+    
+    # Clamp end to total questions
+    end = min(end, total_questions)
+    
+    # Get chunk
+    chunk = quiz_questions[start:end]
+    
+    # Remove correct answers from response (don't reveal during quiz)
+    safe_chunk = []
+    for idx, q in enumerate(chunk, start=start):
+        safe_q = {
+            "index": idx,
+            "question": q.get("question", ""),
+            "code": q.get("code"),
+            "options": q.get("options", []),
+            "question_type": q.get("question_type", ""),
+            # Don't include: correct_answer, explanation, difficulty
+        }
+        safe_chunk.append(safe_q)
+    
+    return {
+        "questions": safe_chunk,
+        "start": start,
+        "end": end,
+        "total": total_questions,
+        "has_more": end < total_questions
     }

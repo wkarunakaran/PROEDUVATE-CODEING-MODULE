@@ -322,7 +322,7 @@ export default function Workspace({
         alert(`Warning: Progress was not saved to database. ${errorData.detail || 'Unknown error'}`);
       } else {
         const savedData = await response.json();
-        console.log("✅ Attempt saved successfully to database:", savedData);
+        console.log("[SUCCESS] Attempt saved successfully to database:", savedData);
       }
     } catch (err) {
       console.error("Failed to save attempt to database:", err);
