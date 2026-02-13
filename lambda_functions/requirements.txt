@@ -1,0 +1,3 @@
+# AWS Lambda Requirements for Java Compiler
+# No additional Python packages required - uses only standard library
+# Java Runtime (OpenJDK) must be available in the Lambda execution environment

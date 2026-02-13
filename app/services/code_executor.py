@@ -89,11 +89,15 @@ class CodeExecutor:
                     except:
                         pass
             
+            elif language.lower() == "java":
+                # Execute Java code
+                return await self._execute_java_locally(code, test_input, timeout, start_time)
+            
             else:
                 return {
                     "success": False,
                     "output": "",
-                    "error": f"Language '{language}' not supported in local execution mode. Only Python is supported.",
+                    "error": f"Language '{language}' not supported in local execution mode. Only Python and Java are supported.",
                     "execution_time": 0
                 }
                 
@@ -198,6 +202,127 @@ class CodeExecutor:
         
         # If no function or already has main block, return as-is
         return code
+
+    async def _execute_java_locally(
+        self,
+        code: str,
+        test_input: str,
+        timeout: int,
+        start_time: float
+    ) -> Dict[str, Any]:
+        """Execute Java code locally"""
+        import re
+        import shutil
+        
+        temp_dir = None
+        try:
+            # Create temporary directory for Java files
+            temp_dir = tempfile.mkdtemp()
+            
+            # Extract class name from code
+            class_name = self._extract_java_class_name(code)
+            if not class_name:
+                return {
+                    "success": False,
+                    "output": "",
+                    "error": "Could not find public class in code. Ensure your code has a public class.",
+                    "execution_time": time.time() - start_time
+                }
+            
+            # Write code to file
+            java_file = os.path.join(temp_dir, f"{class_name}.java")
+            with open(java_file, 'w', encoding='utf-8') as f:
+                f.write(code)
+            
+            print(f"☕ Compiling Java: {java_file}")
+            
+            # Compile Java code
+            compile_result = subprocess.run(
+                ['javac', java_file],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                cwd=temp_dir
+            )
+            
+            if compile_result.returncode != 0:
+                return {
+                    "success": False,
+                    "output": compile_result.stdout,
+                    "error": compile_result.stderr,
+                    "execution_time": time.time() - start_time
+                }
+            
+            print(f"☕ Executing Java: {class_name}")
+            
+            # Execute compiled Java code
+            execute_result = subprocess.run(
+                ['java', class_name],
+                input=test_input,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                cwd=temp_dir
+            )
+            
+            execution_time = time.time() - start_time
+            
+            print(f"📊 Java return code: {execute_result.returncode}")
+            print(f"📤 Java stdout: {execute_result.stdout}")
+            print(f"📤 Java stderr: {execute_result.stderr}")
+            
+            if execute_result.returncode == 0:
+                return {
+                    "success": True,
+                    "output": execute_result.stdout,
+                    "error": execute_result.stderr if execute_result.stderr else "",
+                    "execution_time": execution_time
+                }
+            else:
+                return {
+                    "success": False,
+                    "output": execute_result.stdout,
+                    "error": execute_result.stderr or "Runtime error occurred",
+                    "execution_time": execution_time
+                }
+                
+        except subprocess.TimeoutExpired:
+            return {
+                "success": False,
+                "output": "",
+                "error": f"Execution timed out after {timeout} seconds",
+                "execution_time": timeout
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "output": "",
+                "error": f"Java execution error: {str(e)}",
+                "execution_time": time.time() - start_time
+            }
+        finally:
+            # Clean up temporary directory
+            if temp_dir and os.path.exists(temp_dir):
+                try:
+                    shutil.rmtree(temp_dir)
+                except Exception:
+                    pass
+
+    def _extract_java_class_name(self, code: str) -> str:
+        """Extract the public class name from Java code"""
+        import re
+        
+        # Look for public class declaration
+        match = re.search(r'public\s+class\s+(\w+)', code)
+        if match:
+            return match.group(1)
+        
+        # Fallback: look for any class declaration
+        match = re.search(r'class\s+(\w+)', code)
+        if match:
+            return match.group(1)
+        
+        return None
 
     async def execute_code(
         self, 

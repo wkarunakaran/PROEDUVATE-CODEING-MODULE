@@ -21,6 +21,7 @@ class Settings(BaseModel):
     aws_access_key_id: str = os.getenv("AWS_ACCESS_KEY_ID", "")
     aws_secret_access_key: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
     aws_lambda_function_name: str = os.getenv("AWS_LAMBDA_FUNCTION_NAME", "python-code-executor")
+    aws_java_lambda_function_name: str = os.getenv("AWS_JAVA_LAMBDA_FUNCTION_NAME", "java-code-compiler")
 
     @property
     def cors_origins(self) -> list[str]:
