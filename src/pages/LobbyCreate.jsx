@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Zap, Bug, Target, Bot, Shuffle } from "lucide-react";
+import { Zap, Bug, Target, Bot, Shuffle, Brain } from "lucide-react";
 import { API_BASE } from "../utils/api";
 
 export default function LobbyCreate() {
@@ -10,7 +10,9 @@ export default function LobbyCreate() {
     game_mode: "standard",
     time_limit_seconds: 900,
     max_players: 5,
-    lobby_name: ""
+    lobby_name: "",
+    quiz_language: "python",
+    quiz_question_count: 10
   });
 
   const gameModes = [
@@ -31,6 +33,12 @@ export default function LobbyCreate() {
       name: "Code Shuffle",
       description: "Rearrange shuffled code lines in the correct order",
       icon: <Shuffle size={32} />
+    },
+    {
+      id: "code_quiz",
+      name: "Code Quiz",
+      description: "Answer programming questions - test your knowledge!",
+      icon: <Brain size={32} />
     }
   ];
 
@@ -128,6 +136,53 @@ export default function LobbyCreate() {
               </div>
             </div>
 
+            {/* Code Quiz Specific Fields */}
+            {formData.game_mode === "code_quiz" && (
+              <>
+                {/* Language Selection */}
+                <div>
+                  <label className="block text-white font-semibold mb-2">
+                    Programming Language
+                  </label>
+                  <select
+                    value={formData.quiz_language}
+                    onChange={(e) => setFormData({ ...formData, quiz_language: e.target.value })}
+                    className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="python" className="bg-slate-800">Python</option>
+                    <option value="java" className="bg-slate-800">Java</option>
+                    <option value="cpp" className="bg-slate-800">C++</option>
+                  </select>
+                </div>
+
+                {/* Question Count */}
+                <div>
+                  <label className="block text-white font-semibold mb-2">
+                    Question Count
+                  </label>
+                  <select
+                    value={formData.quiz_question_count}
+                    onChange={(e) => {
+                      const count = parseInt(e.target.value);
+                      setFormData({
+                        ...formData,
+                        quiz_question_count: count,
+                        time_limit_seconds: count * 30  // Auto-calculate: 30 seconds per question
+                      });
+                    }}
+                    className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    {[5, 10, 15, 20, 30, 40, 50, 60].map(n => (
+                      <option key={n} value={n} className="bg-slate-800">{n} questions</option>
+                    ))}
+                  </select>
+                  <p className="text-sm text-gray-400 mt-2">
+                    Time limit: {Math.floor(formData.time_limit_seconds / 60)} minutes ({formData.time_limit_seconds} seconds)
+                  </p>
+                </div>
+              </>
+            )}
+
             {/* Max Players */}
             <div>
               <label className="block text-white font-semibold mb-2">
@@ -147,22 +202,24 @@ export default function LobbyCreate() {
               </div>
             </div>
 
-            {/* Time Limit */}
-            <div>
-              <label className="block text-white font-semibold mb-2">
-                Time Limit
-              </label>
-              <select
-                value={formData.time_limit_seconds}
-                onChange={(e) => setFormData({ ...formData, time_limit_seconds: parseInt(e.target.value) })}
-                className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="900" className="bg-slate-800">15 minutes</option>
-                <option value="1800" className="bg-slate-800">30 minutes</option>
-                <option value="2700" className="bg-slate-800">45 minutes</option>
-                <option value="3600" className="bg-slate-800">60 minutes</option>
-              </select>
-            </div>
+            {/* Time Limit - Only show for non-quiz modes */}
+            {formData.game_mode !== "code_quiz" && (
+              <div>
+                <label className="block text-white font-semibold mb-2">
+                  Time Limit
+                </label>
+                <select
+                  value={formData.time_limit_seconds}
+                  onChange={(e) => setFormData({ ...formData, time_limit_seconds: parseInt(e.target.value) })}
+                  className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="900" className="bg-slate-800">15 minutes</option>
+                  <option value="1800" className="bg-slate-800">30 minutes</option>
+                  <option value="2700" className="bg-slate-800">45 minutes</option>
+                  <option value="3600" className="bg-slate-800">60 minutes</option>
+                </select>
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex gap-4">
@@ -172,7 +229,14 @@ export default function LobbyCreate() {
                 className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-4 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
               >
                 <span className="flex items-center gap-2 justify-center">
-                  {loading ? "Creating & Generating Problem..." : <><Bot size={20} /> Create Lobby (AI Problem)</>}
+                  {loading ? (
+                    formData.game_mode === "code_quiz" ? "Creating & Generating Questions..." : "Creating & Generating Problem..."
+                  ) : (
+                    <>
+                      <Bot size={20} /> 
+                      {formData.game_mode === "code_quiz" ? "Create Quiz Lobby" : "Create Lobby (AI Problem)"}
+                    </>
+                  )}
                 </span>
               </button>
               <button
