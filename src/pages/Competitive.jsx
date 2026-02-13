@@ -3,9 +3,11 @@ import { useState, useEffect } from "react";
 import { Zap, Bug, Target, Gamepad2, DoorOpen, CheckCircle2, Shuffle } from "lucide-react";
 import ProgressBar from "../components/ProgressBar";
 import { API_BASE } from "../utils/api";
+import { useToast } from "../context/ToastContext";
 
 export default function Competitive({ attempts, problems, stats }) {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [matches, setMatches] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -102,7 +104,7 @@ export default function Competitive({ attempts, problems, stats }) {
       if (!res.ok) {
         const errorText = await res.text();
         console.error(`HTTP ${res.status}: ${errorText}`);
-        alert(`Failed to start matchmaking: ${res.status} ${res.statusText}`);
+        showToast(`Failed to start matchmaking: ${res.status} ${res.statusText}`, "error");
         setLoading(false);
         return;
       }
@@ -117,7 +119,7 @@ export default function Competitive({ attempts, problems, stats }) {
       fetchMatches();
     } catch (err) {
       console.error("Error starting matchmaking:", err);
-      alert("Failed to start matchmaking: " + err.message);
+      showToast(`Failed to start matchmaking: ${err.message}`, "error");
     } finally {
       setLoading(false);
     }
@@ -142,31 +144,31 @@ export default function Competitive({ attempts, problems, stats }) {
 
   return (
     <div>
-      <div className="border border-emerald-500/50 rounded-2xl p-4 bg-slate-950/90">
+      <div className="border border-emerald-500/50 rounded-2xl p-4 bg-card shadow-xl">
         <h1 className="text-xl font-semibold mb-1">
           Competitive mode{" "}
-          <span className="text-[11px] uppercase text-emerald-300 bg-emerald-500/10 px-2 py-[2px] rounded-full">
+          <span className="text-[11px] uppercase text-emerald-600 dark:text-emerald-300 bg-emerald-500/10 px-2 py-[2px] rounded-full">
             live
           </span>
         </h1>
-        <p className="text-xs text-slate-400 mb-4">
+        <p className="text-xs text-muted-foreground mb-4">
           Compete against other players in timed coding challenges! Play 1v1 or create multiplayer lobbies up to 15 players.
         </p>
 
         <div className="grid sm:grid-cols-2 gap-3 mb-4 text-xs">
-          <div className="border border-slate-700 rounded-xl p-3">
-            <div className="text-slate-400 mb-1">Your Rating</div>
-            <div className="text-2xl font-semibold text-emerald-400">{rating}</div>
-            <div className="text-[11px] text-slate-400 mt-1">
+          <div className="border border-border rounded-xl p-3">
+            <div className="text-muted-foreground mb-1">Your Rating</div>
+            <div className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">{rating}</div>
+            <div className="text-[11px] text-muted-foreground mt-1">
               Win matches to increase your rating. Higher rating = tougher opponents!
             </div>
           </div>
-          <div className="border border-slate-700 rounded-xl p-3">
-            <div className="text-slate-400 mb-1">
+          <div className="border border-border rounded-xl p-3">
+            <div className="text-muted-foreground mb-1">
               Level progress (Level {stats.level})
             </div>
             <ProgressBar value={stats.levelProgress} big />
-            <div className="text-[11px] text-slate-400 mt-1">
+            <div className="text-[11px] text-muted-foreground mt-1">
               XP: {stats.xp}. Win competitive matches for bonus XP.
             </div>
           </div>
@@ -203,7 +205,7 @@ export default function Competitive({ attempts, problems, stats }) {
 
         {/* Game Mode Selection */}
         <div className="mb-4">
-          <div className="text-sm font-medium mb-2 text-slate-300">Select Game Mode for Quick 1v1</div>
+          <div className="text-sm font-medium mb-2 text-muted-foreground">Select Game Mode for Quick 1v1</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {gameModes.map((mode) => (
               <button
@@ -211,20 +213,20 @@ export default function Competitive({ attempts, problems, stats }) {
                 onClick={() => setSelectedGameMode(mode.id)}
                 className={`text-left border rounded-lg p-3 transition-all ${selectedGameMode === mode.id
                   ? `border-${mode.color}-500 bg-${mode.color}-500/10`
-                  : "border-slate-700 hover:border-slate-600"
+                  : "border-border hover:border-muted-foreground"
                   }`}
               >
                 <div className="flex items-start gap-2">
                   <div className="text-xl">{mode.icon}</div>
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-medium ${selectedGameMode === mode.id ? `text-${mode.color}-400` : "text-slate-200"
+                    <div className={`text-sm font-medium ${selectedGameMode === mode.id ? `text-${mode.color}-600 dark:text-${mode.color}-400` : "text-foreground"
                       }`}>
                       {mode.name}
                     </div>
-                    <div className="text-xs text-slate-400 mt-0.5">{mode.description}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{mode.description}</div>
                   </div>
                   {selectedGameMode === mode.id && (
-                    <CheckCircle2 size={16} className={`text-${mode.color}-400`} />
+                    <CheckCircle2 size={16} className={`text-${mode.color}-600 dark:text-${mode.color}-400`} />
                   )}
                 </div>
               </button>
@@ -233,31 +235,31 @@ export default function Competitive({ attempts, problems, stats }) {
         </div>
       </div>
 
-      <div className="border border-slate-700 rounded-2xl p-4 mt-4 text-xs">
+      <div className="border border-border rounded-2xl p-4 mt-4 text-xs">
         <h2 className="text-sm font-semibold mb-2">Game Modes Explained</h2>
-        <div className="space-y-2 text-slate-300">
+        <div className="space-y-2 text-muted-foreground">
           <div>
-            <span className="font-medium text-emerald-400">⚡ Code Sprint:</span> Classic competitive programming. Both players solve the same problem. Fastest correct solution wins.
+            <span className="font-medium text-emerald-600 dark:text-emerald-400">⚡ Code Sprint:</span> Classic competitive programming. Both players solve the same problem. Fastest correct solution wins.
           </div>
           <div>
-            <span className="font-medium text-red-400">🐛 Bug Hunt:</span> Given buggy code with intentional errors. Debug and fix the code to make all tests pass. Speed matters!
+            <span className="font-medium text-red-600 dark:text-red-400">🐛 Bug Hunt:</span> Given buggy code with intentional errors. Debug and fix the code to make all tests pass. Speed matters!
           </div>
           <div>
-            <span className="font-medium text-purple-400">🔀 Code Shuffle:</span> Code lines are shuffled randomly. Rearrange them in the correct logical order. Tests accuracy and code understanding.
+            <span className="font-medium text-purple-600 dark:text-purple-400">🔀 Code Shuffle:</span> Code lines are shuffled randomly. Rearrange them in the correct logical order. Tests accuracy and code understanding.
           </div>
         </div>
       </div>
 
       {/* Recent Matches */}
       {matches.length > 0 && (
-        <div className="border border-slate-700 rounded-2xl p-4 mt-4">
+        <div className="border border-border rounded-2xl p-4 mt-4">
           <h2 className="text-sm font-semibold mb-3">Recent Matches</h2>
           <div className="space-y-2">
             {matches.map((match) => (
               <Link
                 key={match.id}
                 to={match.status === "active" ? `/competitive/match/${match.id}` : "#"}
-                className={`block border border-slate-700 rounded-lg p-3 text-xs ${match.status === "active" ? "hover:border-emerald-500 cursor-pointer" : ""
+                className={`block border border-border rounded-lg p-3 text-xs ${match.status === "active" ? "hover:border-emerald-500 cursor-pointer" : ""
                   }`}
               >
                 <div className="flex justify-between items-center mb-1">
@@ -265,18 +267,18 @@ export default function Competitive({ attempts, problems, stats }) {
                     <div className="font-medium">
                       {match.player1.username} vs {match.player2?.username || "Waiting..."}
                     </div>
-                    <div className={`text-[10px] px-2 py-0.5 rounded-full bg-${getGameModeColor(match.game_mode)}-500/10 text-${getGameModeColor(match.game_mode)}-400`}>
+                    <div className={`text-[10px] px-2 py-0.5 rounded-full bg-${getGameModeColor(match.game_mode)}-500/10 text-${getGameModeColor(match.game_mode)}-600 dark:text-${getGameModeColor(match.game_mode)}-400`}>
                       {getGameModeName(match.game_mode)}
                     </div>
                   </div>
                   <div className={`text-[10px] uppercase px-2 py-1 rounded-full ${match.status === "completed" ? "bg-emerald-500/10 text-emerald-400" :
-                    match.status === "active" ? "bg-blue-500/10 text-blue-400" :
-                      "bg-slate-700 text-slate-400"
+                    match.status === "active" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" :
+                      "bg-muted text-muted-foreground"
                     }`}>
                     {getMatchStatus(match)}
                   </div>
                 </div>
-                <div className="text-slate-400 text-[11px]">
+                <div className="text-muted-foreground text-[11px]">
                   {match.winner_id && (
                     <span className="text-emerald-400">
                       Winner: {match.player1.user_id === match.winner_id ? match.player1.username : match.player2.username}
@@ -297,19 +299,19 @@ export default function Competitive({ attempts, problems, stats }) {
 
       {/* Competitive Leaderboard */}
       {leaderboard.length > 0 && (
-        <div className="border border-slate-700 rounded-2xl p-4 mt-4">
+        <div className="border border-border rounded-2xl p-4 mt-4">
           <h2 className="text-sm font-semibold mb-3">Top Players</h2>
           <div className="space-y-2">
             {leaderboard.map((player, idx) => (
               <div
                 key={idx}
-                className="flex items-center justify-between text-xs border border-slate-700 rounded-lg p-2"
+                className="flex items-center justify-between text-xs border border-border rounded-lg p-2"
               >
                 <div className="flex items-center gap-3">
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center font-semibold ${idx === 0 ? "bg-yellow-500/20 text-yellow-400" :
-                    idx === 1 ? "bg-slate-400/20 text-slate-300" :
+                    idx === 1 ? "bg-muted-foreground/20 text-muted-foreground" :
                       idx === 2 ? "bg-orange-500/20 text-orange-400" :
-                        "bg-slate-700 text-slate-400"
+                        "bg-muted text-muted-foreground"
                     }`}>
                     {player.rank}
                   </div>

@@ -23,10 +23,11 @@ import { initialProblems } from "./data/problems";
 import { computeUserStats } from "./utils/stats";
 import { API_BASE } from "./utils/api";
 
+import { ThemeProvider } from "./context/ThemeContext";
+import { ToastProvider } from "./context/ToastContext";
 const STORAGE_KEY = "codoai_v3_state";
 
 export default function App() {
-  const [theme, setTheme] = useState("dark");
   const [user, setUser] = useState(null);
   const [problems, setProblems] = useState(initialProblems);
   const [currentLanguage, setCurrentLanguage] = useState("python");
@@ -42,13 +43,6 @@ export default function App() {
       if (parsed.user) setUser(parsed.user);
       if (parsed.problems) setProblems(parsed.problems);
       if (parsed.currentLanguage) setCurrentLanguage(parsed.currentLanguage);
-      // Don't load attempts from localStorage anymore - will load from API
-      if (parsed.theme) {
-        setTheme(parsed.theme);
-        if (parsed.theme === "light") {
-          document.documentElement.classList.add("light-theme");
-        }
-      }
     } catch (err) {
       console.error("Failed to load state", err);
     } finally {
@@ -107,27 +101,18 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    // Only save user, problems, language, and theme to localStorage
+    // Only save user, problems, and language to localStorage
     // Attempts are stored in database
-    const state = { user, problems, currentLanguage, theme };
+    // Theme is handled by ThemeContext
+    const state = { user, problems, currentLanguage };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (err) {
       console.error("Failed to persist state", err);
     }
-  }, [user, problems, currentLanguage, theme]);
+  }, [user, problems, currentLanguage]);
 
-  const toggleTheme = () => {
-    setTheme((prev) => {
-      const next = prev === "dark" ? "light" : "dark";
-      if (next === "light") {
-        document.documentElement.classList.add("light-theme");
-      } else {
-        document.documentElement.classList.remove("light-theme");
-      }
-      return next;
-    });
-  };
+
 
   const handleLogin = async (username) => {
     const isAdmin = username.trim().toLowerCase() === "admin";
@@ -144,13 +129,13 @@ export default function App() {
 
         if (response.ok) {
           const userData = await response.json();
-          
+
           // Store userId and username in localStorage for lobby/match checks
           localStorage.setItem("userId", userData.id);
           localStorage.setItem("username", userData.username);
-          
+
           console.log("✅ User logged in:", { id: userData.id, username: userData.username });
-          
+
           setUser({
             id: userData.id,
             name: userData.username,
@@ -169,7 +154,7 @@ export default function App() {
     // Fallback to basic user object if API fails
     const fallbackUsername = username.trim();
     localStorage.setItem("username", fallbackUsername);
-    
+
     setUser({
       name: fallbackUsername,
       isAdmin,
@@ -182,12 +167,12 @@ export default function App() {
   const handleLogout = () => {
     setUser(null);
     setAttempts({});
-    
+
     // Clear user session data
     localStorage.removeItem("token");
     localStorage.removeItem("userId");
     localStorage.removeItem("username");
-    
+
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
@@ -217,126 +202,139 @@ export default function App() {
   }
 
   return (
-    <BrowserRouter>
-      <div className="min-h-screen bg-slate-950 text-slate-100 transition-colors duration-300">
-        {window.location.pathname !== "/" && (
-          <Navbar
-            user={user}
-            onLogout={handleLogout}
-            theme={theme}
-            toggleTheme={toggleTheme}
-          />
-        )}
+    <ThemeProvider>
+      <ToastProvider>
+        <BrowserRouter>
+          <div className="min-h-screen bg-background text-foreground transition-colors duration-300 flex flex-col font-sans">
+            <Navbar user={user} onLogout={handleLogout} />
+            <main className="flex-1">
+              <Routes>
+                <Route path="/" element={<Home user={user} />} />
+                <Route path="/login" element={<Login onLogin={handleLogin} />} />
+                <Route path="/register" element={<Register onLogin={handleLogin} />} />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <RequireAuth user={user}>
+                      <Dashboard
+                        user={user}
+                        stats={stats}
+                        problems={problems}
+                        attempts={attempts}
+                        currentLanguage={currentLanguage}
+                      />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/profile"
+                  element={
+                    <RequireAuth user={user}>
+                      <Profile
+                        user={user}
+                        stats={stats}
+                        attempts={attempts}
+                        problems={problems}
+                        currentLanguage={currentLanguage}
+                      />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/problems"
+                  element={
+                    <RequireAuth user={user}>
+                      <Problems
+                        problems={problems}
+                        attempts={attempts}
+                        currentLanguage={currentLanguage}
+                      />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/solve/:id"
+                  element={
+                    <RequireAuth user={user}>
+                      <Workspace
+                        user={user}
+                        problems={problems}
+                        attempts={attempts}
+                        setAttempts={setAttempts}
+                        currentLanguage={currentLanguage}
+                        setCurrentLanguage={setCurrentLanguage}
+                      />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/admin"
+                  element={
+                    <RequireAuth user={user}>
+                      {user?.isAdmin ? (
+                        <Admin problems={problems} setProblems={setProblems} />
+                      ) : (
+                        <Navigate to="/dashboard" replace />
+                      )}
+                    </RequireAuth>
+                  }
+                />
 
-        {user && (
-          <div className="fixed top-16 right-4 z-30">
-            <LanguageSelector
-              current={currentLanguage}
-              onChange={setCurrentLanguage}
-            />
+                {/* Competitive Routes */}
+                <Route
+                  path="/competitive"
+                  element={
+                    <RequireAuth user={user}>
+                      <Competitive attempts={attempts} problems={problems} stats={stats} />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/competitive/match/:matchId"
+                  element={
+                    <RequireAuth user={user}>
+                      <CompetitiveMatch />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/lobby/create"
+                  element={
+                    <RequireAuth user={user}>
+                      <LobbyCreate />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/lobby/join"
+                  element={
+                    <RequireAuth user={user}>
+                      <LobbyJoin />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/lobby/:gameId"
+                  element={
+                    <RequireAuth user={user}>
+                      <LobbyRoom />
+                    </RequireAuth>
+                  }
+                />
+
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </main>
           </div>
-        )}
-
-        <div className="max-w-6xl mx-auto px-4 py-6">
-          <Routes>
-            <Route path="/" element={<Home user={user} stats={stats} />} />
-            <Route
-              path="/login"
-              element={<Login onLogin={handleLogin} />}
-            />
-            <Route
-              path="/register"
-              element={<Register onLogin={handleLogin} />}
-            />
-            <Route
-              path="/dashboard"
-              element={requireAuth(
-                <Dashboard
-                  user={user}
-                  problems={problems}
-                  attempts={attempts}
-                  currentLanguage={currentLanguage}
-                  stats={stats}
-                />
-              )}
-            />
-            <Route
-              path="/profile"
-              element={requireAuth(
-                <Profile
-                  user={user}
-                  attempts={attempts}
-                  problems={problems}
-                  currentLanguage={currentLanguage}
-                  stats={stats}
-                />
-              )}
-            />
-            <Route
-              path="/problems"
-              element={requireAuth(
-                <Problems
-                  problems={problems}
-                  attempts={attempts}
-                  currentLanguage={currentLanguage}
-                />
-              )}
-            />
-            <Route
-              path="/workspace/:id"
-              element={requireAuth(
-                <Workspace
-                  user={user}
-                  problems={problems}
-                  attempts={attempts}
-                  setAttempts={setAttempts}
-                  currentLanguage={currentLanguage}
-                  setCurrentLanguage={setCurrentLanguage}
-                />
-              )}
-            />
-            <Route
-              path="/competitive"
-              element={requireAuth(
-                <Competitive attempts={attempts} problems={problems} stats={stats} />
-              )}
-            />
-            <Route
-              path="/competitive/match/:matchId"
-              element={requireAuth(
-                <CompetitiveMatch />
-              )}
-            />
-            <Route
-              path="/lobby/create"
-              element={requireAuth(<LobbyCreate />)}
-            />
-            <Route
-              path="/lobby/join"
-              element={requireAuth(<LobbyJoin />)}
-            />
-            <Route
-              path="/lobby/:gameId"
-              element={requireAuth(<LobbyRoom />)}
-            />
-            <Route
-              path="/competitive/:matchId"
-              element={requireAuth(<CompetitiveMatch />)}
-            />
-            <Route
-              path="/admin"
-              element={requireAuth(
-                user?.isAdmin ? (
-                  <Admin problems={problems} setProblems={setProblems} />
-                ) : (
-                  <Navigate to="/dashboard" replace />
-                )
-              )}
-            />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </div>
-      </div>
-    </BrowserRouter>
+        </BrowserRouter>
+      </ToastProvider>
+    </ThemeProvider>
   );
+}
+
+function RequireAuth({ user, children }) {
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
 }

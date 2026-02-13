@@ -2,10 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body {
-  @apply bg-slate-950 text-slate-100 transition-colors duration-300;
+@layer base {
+  :root {
+    /* Default Dark Mode Colors (matching current slate-950 theme) */
+    --background: 2 6 23; /* slate-950 */
+    --foreground: 241 245 249; /* slate-100 */
+    
+    --card: 15 23 42; /* slate-900 */
+    --card-foreground: 226 232 240; /* slate-200 */
+    
+    --popover: 15 23 42; /* slate-900 */
+    --popover-foreground: 226 232 240; /* slate-200 */
+    
+    --primary: 147 51 234; /* purple-600 */
+    --primary-foreground: 255 255 255;
+    
+    --secondary: 16 185 129; /* emerald-500 */
+    --secondary-foreground: 2 6 23;
+    
+    --muted: 30 41 59; /* slate-800 */
+    --muted-foreground: 148 163 184; /* slate-400 */
+    
+    --accent: 30 41 59; /* slate-800 */
+    --accent-foreground: 226 232 240; /* slate-200 */
+    
+    --destructive: 225 29 72; /* rose-600 */
+    --destructive-foreground: 255 255 255;
+    
+    --border: 51 65 85; /* slate-700 */
+    --input: 30 41 59; /* slate-800 */
+    --ring: 147 51 234; /* purple-600 */
+  }
+
+  .light {
+    /* Light Mode Colors */
+    --background: 255 255 255; /* white */
+    --foreground: 15 23 42; /* slate-900 */
+    
+    --card: 248 250 252; /* slate-50 */
+    --card-foreground: 15 23 42; /* slate-900 */
+    
+    --popover: 255 255 255; /* white */
+    --popover-foreground: 15 23 42; /* slate-900 */
+    
+    --primary: 124 58 237; /* violet-600 */
+    --primary-foreground: 255 255 255;
+    
+    --secondary: 16 185 129; /* emerald-500 */
+    --secondary-foreground: 255 255 255;
+    
+    --muted: 241 245 249; /* slate-100 */
+    --muted-foreground: 100 116 139; /* slate-500 */
+    
+    --accent: 241 245 249; /* slate-100 */
+    --accent-foreground: 15 23 42; /* slate-900 */
+    
+    --destructive: 225 29 72; /* rose-600 */
+    --destructive-foreground: 255 255 255;
+    
+    --border: 226 232 240; /* slate-200 */
+    --input: 226 232 240; /* slate-200 */
+    --ring: 124 58 237; /* violet-600 */
+  }
 }
 
-.light-theme {
-  @apply bg-white text-slate-900;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground transition-colors duration-300;
+  }
 }

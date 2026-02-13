@@ -5,6 +5,7 @@ import { API_BASE } from "../utils/api";
 
 export default function LobbyCreate() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     game_mode: "standard",
@@ -59,29 +60,29 @@ export default function LobbyCreate() {
       navigate(`/lobby/${data.game_id}`);
     } catch (err) {
       console.error("Error creating lobby:", err);
-      alert(err.message || "Failed to create lobby");
+      showToast(err.message || "Failed to create lobby", "error");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 py-8 px-4">
+    <div className="min-h-screen bg-background py-8 px-4">
       <div className="max-w-4xl mx-auto">
-        <div className="bg-white/10 backdrop-blur-md rounded-2xl shadow-2xl p-8">
+        <div className="bg-card rounded-2xl shadow-2xl p-8 border border-border">
           <div className="mb-6">
-            <h1 className="text-4xl font-bold text-white mb-2">Create Multiplayer Lobby</h1>
-            <p className="text-gray-300">Set up a game for up to 15 players - AI will generate a random problem!</p>
+            <h1 className="text-4xl font-bold text-foreground mb-2">Create Multiplayer Lobby</h1>
+            <p className="text-muted-foreground">Set up a game for up to 15 players - AI will generate a random problem!</p>
           </div>
 
           <form onSubmit={handleCreateLobby} className="space-y-6">
             {/* AI Generation Info */}
-            <div className="bg-blue-500/10 backdrop-blur-md rounded-xl p-4 border-2 border-blue-500/30">
+            <div className="bg-blue-500/10 rounded-xl p-4 border border-blue-500/30">
               <div className="flex items-start gap-3">
                 <Bot size={32} className="text-blue-400" />
                 <div>
-                  <h3 className="text-lg font-bold text-blue-300 mb-1">AI-Generated Problems</h3>
-                  <p className="text-sm text-gray-300">
+                  <h3 className="text-lg font-bold text-blue-600 dark:text-blue-400 mb-1">AI-Generated Problems</h3>
+                  <p className="text-sm text-muted-foreground">
                     Each game will feature a unique, randomly generated coding problem created by AI!
                     The difficulty is chosen automatically to provide the best competitive experience.
                   </p>
@@ -91,21 +92,21 @@ export default function LobbyCreate() {
 
             {/* Lobby Name */}
             <div>
-              <label className="block text-white font-semibold mb-2">
+              <label className="block text-foreground font-semibold mb-2">
                 Lobby Name (Optional)
               </label>
               <input
                 type="text"
                 value={formData.lobby_name}
                 onChange={(e) => setFormData({ ...formData, lobby_name: e.target.value })}
-                placeholder="My Awesome Game"
-                className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                placeholder="e.g. Saturday Night Coding"
+                className="w-full px-4 py-3 rounded-xl bg-input border border-input text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
               />
             </div>
 
             {/* Game Mode Selection */}
             <div>
-              <label className="block text-white font-semibold mb-3">
+              <label className="block text-foreground font-semibold mb-3">
                 Select Game Mode
               </label>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -113,16 +114,22 @@ export default function LobbyCreate() {
                   <div
                     key={mode.id}
                     onClick={() => setFormData({ ...formData, game_mode: mode.id })}
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${formData.game_mode === mode.id
+                    className={`relative p-4 rounded-xl border-2 transition-all cursor-pointer text-left ${formData.game_mode === mode.id
                       ? "border-purple-500 bg-purple-500/20"
-                      : "border-white/20 bg-white/5 hover:border-purple-400"
+                      : "border-border bg-card hover:border-purple-500/50 hover:bg-muted"
                       }`}
                   >
                     <div className="flex items-center mb-2">
                       <span className="text-3xl mr-3">{mode.icon}</span>
-                      <h3 className="text-lg font-bold text-white">{mode.name}</h3>
+                      <div>
+                        <h3 className={`font-bold ${formData.game_mode === mode.id ? "text-purple-700 dark:text-purple-400" : "text-foreground"}`}>
+                          {mode.name}
+                        </h3>
+                        <p className={`text-sm ${formData.game_mode === mode.id ? "text-purple-600 dark:text-purple-300" : "text-muted-foreground"}`}>
+                          {mode.description}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-300">{mode.description}</p>
                   </div>
                 ))}
               </div>
@@ -130,8 +137,8 @@ export default function LobbyCreate() {
 
             {/* Max Players */}
             <div>
-              <label className="block text-white font-semibold mb-2">
-                Maximum Players: {formData.max_players}
+              <label className="block text-foreground font-semibold mb-2">
+                Max Players: {formData.max_players}
               </label>
               <input
                 type="range"
@@ -139,29 +146,30 @@ export default function LobbyCreate() {
                 max="15"
                 value={formData.max_players}
                 onChange={(e) => setFormData({ ...formData, max_players: parseInt(e.target.value) })}
-                className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-purple-500"
               />
-              <div className="flex justify-between text-sm text-gray-400 mt-1">
+              <div className="flex justify-between text-sm text-muted-foreground mt-1">
                 <span>2 players</span>
                 <span>15 players</span>
               </div>
             </div>
 
-            {/* Time Limit */}
-            <div>
-              <label className="block text-white font-semibold mb-2">
-                Time Limit
-              </label>
-              <select
-                value={formData.time_limit_seconds}
-                onChange={(e) => setFormData({ ...formData, time_limit_seconds: parseInt(e.target.value) })}
-                className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="900" className="bg-slate-800">15 minutes</option>
-                <option value="1800" className="bg-slate-800">30 minutes</option>
-                <option value="2700" className="bg-slate-800">45 minutes</option>
-                <option value="3600" className="bg-slate-800">60 minutes</option>
-              </select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-foreground font-semibold mb-2">
+                  Timer Duration
+                </label>
+                <select
+                  value={formData.time_limit_seconds}
+                  onChange={(e) => setFormData({ ...formData, time_limit_seconds: parseInt(e.target.value) })}
+                  className="w-full px-4 py-3 rounded-xl bg-input border border-input text-foreground focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                >
+                  <option value="900" className="bg-popover text-popover-foreground">15 minutes</option>
+                  <option value="1800" className="bg-popover text-popover-foreground">30 minutes</option>
+                  <option value="2700" className="bg-popover text-popover-foreground">45 minutes</option>
+                  <option value="3600" className="bg-popover text-popover-foreground">60 minutes</option>
+                </select>
+              </div>
             </div>
 
             {/* Action Buttons */}
@@ -169,16 +177,16 @@ export default function LobbyCreate() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-4 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                className="flex-1 bg-primary text-primary-foreground font-bold py-4 rounded-xl hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
               >
                 <span className="flex items-center gap-2 justify-center">
-                  {loading ? "Creating & Generating Problem..." : <><Bot size={20} /> Create Lobby (AI Problem)</>}
+                  {loading ? "Creating & Generating Problem..." : <><Bot size={20} /> Create Lobby & Start</>}
                 </span>
               </button>
               <button
                 type="button"
                 onClick={() => navigate("/competitive")}
-                className="px-6 py-4 bg-white/10 text-white font-semibold rounded-lg hover:bg-white/20 transition-all border border-white/20"
+                className="w-full py-4 rounded-xl font-bold bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-all"
               >
                 Cancel
               </button>

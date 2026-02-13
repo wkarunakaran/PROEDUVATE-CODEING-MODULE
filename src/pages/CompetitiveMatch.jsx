@@ -4,10 +4,12 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { Zap, Bug, Target, Trophy, Lightbulb, CheckCircle2, XCircle, AlertTriangle, Play, Shuffle, Medal, Award, Clock as ClockIcon } from "lucide-react";
 import MonacoEditorWrapper from "../components/MonacoEditorWrapper";
 import { API_BASE } from "../utils/api";
+import { useToast } from "../context/ToastContext";
 
 export default function CompetitiveMatch() {
   const { matchId } = useParams();
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const [match, setMatch] = useState(null);
   const [problem, setProblem] = useState(null);
@@ -45,11 +47,11 @@ export default function CompetitiveMatch() {
   useEffect(() => {
     if (matchStartTime && !matchCompleted) {
       // Parse server timestamp as UTC (server sends naive UTC datetime without 'Z')
-      const utcTimestamp = matchStartTime.endsWith('Z') || matchStartTime.includes('+') 
-        ? matchStartTime 
+      const utcTimestamp = matchStartTime.endsWith('Z') || matchStartTime.includes('+')
+        ? matchStartTime
         : matchStartTime + 'Z';
       const startTime = new Date(utcTimestamp).getTime();
-      
+
       const updateTimer = () => {
         const now = Date.now();
         const elapsed = Math.floor((now - startTime) / 1000);
@@ -76,24 +78,24 @@ export default function CompetitiveMatch() {
     if (!match || !matchStartTime || matchCompleted) return;
 
     const timeLimit = match.time_limit_seconds || 900; // Default 15 minutes
-    
+
     // Safety: Ensure we have a valid time limit
     if (timeLimit <= 0) {
       console.log("⚠️ Invalid time limit:", timeLimit);
       return;
     }
-    
+
     // Only check timeout for active matches
     if (match.status !== "active") {
       console.log("⚠️ Match not active, status:", match.status);
       return;
     }
-    
+
     // Prevent checking on initial load - wait for at least 10 seconds of game time
     if (timeElapsed < 10) {
       return;
     }
-    
+
     const timeRemaining = Math.max(0, timeLimit - timeElapsed);
 
     // Only trigger timeout if timer reached 0 and has been running
@@ -133,11 +135,11 @@ export default function CompetitiveMatch() {
           const aSolved = a.problems_solved || 0;
           const bSolved = b.problems_solved || 0;
           if (aSolved !== bSolved) return bSolved - aSolved;
-          
+
           const aScore = a.score || 0;
           const bScore = b.score || 0;
           if (aScore !== bScore) return bScore - aScore;
-          
+
           return (a.time_elapsed || Infinity) - (b.time_elapsed || Infinity);
         });
 
@@ -194,7 +196,7 @@ export default function CompetitiveMatch() {
       console.log("⏰ Game ended due to time expiration - showing final standings");
     } catch (err) {
       console.error("Error handling time expiration:", err);
-      alert("Time's up! Failed to load final results.");
+      showToast("Time's up! Failed to load final results.", "error");
     }
   };
 
@@ -221,7 +223,7 @@ export default function CompetitiveMatch() {
       console.log("📊 Winner ID:", data.winner_id);
       console.log("📊 Time limit:", data.time_limit_seconds);
       setMatch(data);
-      
+
       // Set match start time for accurate timer calculation (survives page refresh)
       if (data.started_at) {
         setMatchStartTime(data.started_at);
@@ -280,7 +282,7 @@ export default function CompetitiveMatch() {
 
     } catch (err) {
       console.error("Error fetching match:", err);
-      alert("Failed to load match: " + err.message);
+      showToast(`Failed to load match: ${err.message}`, "error");
       navigate("/competitive");
     }
   };
@@ -613,7 +615,7 @@ export default function CompetitiveMatch() {
 
   const handleUseHint = async () => {
     if (usedHints) {
-      alert("You have already used a hint in this match");
+      showToast("You have already used a hint in this match", "warning");
       return;
     }
 
@@ -627,7 +629,7 @@ export default function CompetitiveMatch() {
       });
 
       setUsedHints(true);
-      alert("Hint used! Note: This reduces your potential XP bonus.");
+      showToast("Hint used! Note: This reduces your potential XP bonus.", "info");
     } catch (err) {
       console.error("Error using hint:", err);
     }
@@ -691,8 +693,8 @@ export default function CompetitiveMatch() {
   if (!match || !problem) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="text-slate-400 flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-400"></div>
+        <div className="text-muted-foreground flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-muted-foreground"></div>
           <div>Loading match...</div>
         </div>
       </div>
@@ -702,17 +704,17 @@ export default function CompetitiveMatch() {
   // Error State - Problem Missing or Match Invalid
   if (problem?.error) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-950">
-        <div className="text-center p-8 bg-slate-900 rounded-lg border border-red-900/50 max-w-md">
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="text-center p-8 bg-card rounded-lg border border-red-900/50 max-w-md">
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-white mb-2">Match Validation Failed</h2>
-          <p className="text-slate-400 mb-6">{problem.error}</p>
-          <p className="text-xs text-slate-500 mb-6">
+          <h2 className="text-xl font-bold text-foreground mb-2">Match Validation Failed</h2>
+          <p className="text-muted-foreground mb-6">{problem.error}</p>
+          <p className="text-xs text-muted-foreground mb-6">
             This usually happens if the problem database was updated while you were in a match.
           </p>
           <button
             onClick={() => navigate('/competitive')}
-            className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-md transition-colors"
+            className="px-6 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-md transition-colors"
           >
             ← Back to Competitive
           </button>
@@ -736,30 +738,30 @@ export default function CompetitiveMatch() {
   return (
     <div className="h-screen flex flex-col">
       {/* Header */}
-      <div className="border-b border-slate-700 p-4 bg-slate-900">
+      <div className="border-b border-border p-4 bg-muted/30">
         <div className="flex items-center justify-between mb-2">
           <div>
             <h1 className="text-lg font-semibold flex items-center gap-2">
               <span>{modeInfo.icon}</span>
               <span>{modeInfo.name}</span>
               {isMultiplayer ? (
-                <span className="text-sm text-slate-400">
+                <span className="text-sm text-muted-foreground">
                   {players.length} Players
                   {match.game_id && <span className="ml-2 font-mono text-purple-400">{match.game_id}</span>}
                 </span>
               ) : (
-                <span className="text-sm text-slate-400">
+                <span className="text-sm text-muted-foreground">
                   {match.player1?.username || 'Player 1'} vs {match.player2?.username || "Waiting..."}
                 </span>
               )}
             </h1>
-            <p className="text-xs text-slate-400">{problem.title}</p>
+            <p className="text-xs text-muted-foreground">{problem.title}</p>
           </div>
 
           <div className="flex items-center gap-4">
             {/* Timer */}
-            <div className={`text-right ${timeRemaining < 60 ? 'text-red-400' : 'text-slate-300'}`}>
-              <div className="text-xs text-slate-400">Time Remaining</div>
+            <div className={`text-right ${timeRemaining < 60 ? 'text-red-400' : 'text-muted-foreground'}`}>
+              <div className="text-xs text-muted-foreground">Time Remaining</div>
               <div className="text-xl font-mono font-bold">
                 {formatTime(timeRemaining)}
               </div>
@@ -768,8 +770,8 @@ export default function CompetitiveMatch() {
             {/* Player Status */}
             {isMultiplayer ? (
               <div className="text-right">
-                <div className="text-xs text-slate-400">Completed</div>
-                <div className="text-sm font-medium text-slate-300">
+                <div className="text-xs text-muted-foreground">Completed</div>
+                <div className="text-sm font-medium text-foreground">
                   {players.filter(p => p.completed).length} / {players.length}
                 </div>
               </div>
@@ -782,13 +784,13 @@ export default function CompetitiveMatch() {
           <div className="mb-3 space-y-2">
             {/* Player 1 (Current User) */}
             <div className="flex items-center gap-3">
-              <div className="w-32 text-xs text-slate-300 font-medium truncate">
+              <div className="w-32 text-xs text-muted-foreground font-medium truncate">
                 {match.player1?.username || 'Player 1'}
                 {match.player1?.user_id === currentUserId && (
                   <span className="ml-1 text-purple-400">(You)</span>
                 )}
               </div>
-              <div className="flex-1 bg-slate-700 rounded-full h-2 overflow-hidden relative">
+              <div className="flex-1 bg-secondary rounded-full h-2 overflow-hidden relative">
                 <div
                   className={`h-2 rounded-full transition-all duration-500 ease-out ${match.player1?.completed ? 'bg-emerald-500' : 'bg-blue-500'
                     }`}
@@ -810,13 +812,13 @@ export default function CompetitiveMatch() {
 
             {/* Player 2 (Opponent) */}
             <div className="flex items-center gap-3">
-              <div className="w-32 text-xs text-slate-300 font-medium truncate">
+              <div className="w-32 text-xs text-muted-foreground font-medium truncate">
                 {match.player2?.username || 'Player 2'}
                 {match.player2?.user_id === currentUserId && (
                   <span className="ml-1 text-purple-400">(You)</span>
                 )}
               </div>
-              <div className="flex-1 bg-slate-700 rounded-full h-2 overflow-hidden relative">
+              <div className="flex-1 bg-secondary rounded-full h-2 overflow-hidden relative">
                 <div
                   className={`h-2 rounded-full transition-all duration-500 ease-out ${match.player2?.completed ? 'bg-emerald-500' : 'bg-purple-500'
                     }`}
@@ -848,7 +850,7 @@ export default function CompetitiveMatch() {
                   ? 'border-purple-500 bg-purple-500/20 text-purple-300'
                   : player?.completed
                     ? 'border-green-500 bg-green-500/20 text-green-300'
-                    : 'border-slate-600 bg-slate-800 text-slate-400'
+                    : 'border-border bg-secondary text-muted-foreground'
                   }`}
               >
                 {player?.rank && <span className="font-bold mr-1">#{player.rank}</span>}
@@ -860,7 +862,7 @@ export default function CompetitiveMatch() {
         )}
 
         {/* Progress bar */}
-        <div className="w-full bg-slate-700 rounded-full h-1">
+        <div className="w-full bg-secondary rounded-full h-1">
           <div
             className={`h-1 rounded-full transition-all ${timeProgress > 90 ? 'bg-red-500' :
               timeProgress > 70 ? 'bg-orange-500' :
@@ -873,7 +875,7 @@ export default function CompetitiveMatch() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Problem Description */}
-        <div className="w-1/3 border-r border-slate-700 overflow-y-auto p-4 bg-slate-950">
+        <div className="w-1/3 border-r border-border overflow-y-auto p-4 bg-card">
           <div className="mb-4">
             <h2 className="text-sm font-semibold mb-2 text-emerald-400">Problem</h2>
             <div className="mb-2">
@@ -884,33 +886,32 @@ export default function CompetitiveMatch() {
                 {problem.difficulty}
               </span>
             </div>
-            <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">{problem.description}</p>
+            <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{problem.description}</p>
           </div>
 
           {problem.examples && problem.examples.length > 0 && (
             <div className="mb-4">
               <h3 className="text-sm font-semibold mb-2 text-blue-400">Examples</h3>
-              {problem.examples.map((ex, idx) => (
-                <div key={idx} className="mb-3 p-3 bg-slate-900 rounded border border-slate-700">
-                  <div className="text-xs mb-1 text-slate-500">Example {idx + 1}</div>
-                  <div className="text-xs space-y-2">
-                    <div>
-                      <div className="text-slate-400 font-semibold mb-1">Input:</div>
-                      <div className="font-mono text-xs text-emerald-400 bg-slate-800 p-2 rounded whitespace-pre">{ex.input}</div>
-                    </div>
-                    <div>
-                      <div className="text-slate-400 font-semibold mb-1">Output:</div>
-                      <div className="font-mono text-xs text-blue-400 bg-slate-800 p-2 rounded whitespace-pre">{ex.output}</div>
-                    </div>
-                    {ex.explanation && (
-                      <div>
-                        <div className="text-slate-400 font-semibold mb-1">Explanation:</div>
-                        <div className="text-xs text-slate-300">{ex.explanation}</div>
-                      </div>
-                    )}
+              {problem.examples.map((ex, idx) => <div key={idx} className="mb-3 p-3 bg-muted rounded border border-border">
+                <div className="text-xs mb-1 text-muted-foreground">Example {idx + 1}</div>
+                <div className="text-xs space-y-2">
+                  <div>
+                    <div className="text-muted-foreground font-semibold mb-1">Input:</div>
+                    <div className="font-mono text-xs text-emerald-400 bg-secondary p-2 rounded whitespace-pre">{ex.input}</div>
                   </div>
+                  <div>
+                    <div className="text-muted-foreground font-semibold mb-1">Output:</div>
+                    <div className="font-mono text-xs text-blue-400 bg-secondary p-2 rounded whitespace-pre">{ex.output}</div>
+                  </div>
+                  {ex.explanation && (
+                    <div>
+                      <div className="text-muted-foreground font-semibold mb-1">Explanation:</div>
+                      <div className="text-xs text-muted-foreground">{ex.explanation}</div>
+                    </div>
+                  )}
                 </div>
-              ))}
+              </div>
+              )}
             </div>
           )}
 
@@ -920,7 +921,7 @@ export default function CompetitiveMatch() {
                 onClick={handleUseHint}
                 disabled={usedHints}
                 className={`text-xs px-3 py-1 rounded ${usedHints
-                  ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                  ? 'bg-secondary text-muted-foreground cursor-not-allowed'
                   : 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'
                   }`}
               >
@@ -947,7 +948,7 @@ export default function CompetitiveMatch() {
                 <Bug size={32} className="text-red-400" />
                 <div>
                   <h3 className="text-sm font-bold text-red-400">Bug Hunt Challenge</h3>
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     The code below contains bugs! Find and fix all errors to make it pass the test cases.
                     <span className="text-red-300 font-semibold"> Copy/Paste is disabled</span> - you must manually edit the code.
                   </p>
@@ -965,7 +966,7 @@ export default function CompetitiveMatch() {
                   <h3 className="text-sm font-semibold text-purple-400 mb-2">
                     🔀 Arrange the code lines in the correct order
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-muted-foreground">
                     Drag lines to reorder or use arrow buttons. At least 80% accuracy required.
                   </p>
                 </div>
@@ -976,10 +977,10 @@ export default function CompetitiveMatch() {
                     <div className="text-center p-8 bg-red-500/10 border border-red-500/30 rounded-lg">
                       <AlertTriangle size={48} className="text-red-400 mx-auto mb-4" />
                       <h3 className="text-lg font-semibold text-red-400 mb-2">No Code Lines Available</h3>
-                      <p className="text-sm text-slate-400 mb-4">
+                      <p className="text-sm text-muted-foreground mb-4">
                         This problem doesn't have reference code for shuffling.
                       </p>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-muted-foreground">
                         Please try a different problem or contact an administrator.
                       </p>
                     </div>
@@ -1004,17 +1005,17 @@ export default function CompetitiveMatch() {
                                   <div
                                     ref={provided.innerRef}
                                     {...provided.draggableProps}
-                                    className={`flex items-center gap-2 bg-slate-900 border rounded p-2 transition-all ${snapshot.isDragging
+                                    className={`flex items-center gap-2 bg-muted border rounded p-2 transition-all ${snapshot.isDragging
                                       ? 'border-purple-500 shadow-lg shadow-purple-500/20 scale-105'
-                                      : 'border-slate-700'
+                                      : 'border-border'
                                       }`}
                                   >
                                     <div
                                       {...provided.dragHandleProps}
-                                      className="cursor-grab active:cursor-grabbing p-2 hover:bg-slate-800 rounded"
+                                      className="cursor-grab active:cursor-grabbing p-2 hover:bg-secondary rounded"
                                       title="Drag to reorder"
                                     >
-                                      <svg className="w-4 h-4 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
+                                      <svg className="w-4 h-4 text-muted-foreground" fill="currentColor" viewBox="0 0 20 20">
                                         <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                                       </svg>
                                     </div>
@@ -1022,7 +1023,7 @@ export default function CompetitiveMatch() {
                                       <button
                                         onClick={() => handleLineMove(idx, "up")}
                                         disabled={idx === 0}
-                                        className="text-xs px-2 py-1 bg-slate-800 rounded hover:bg-slate-700 disabled:opacity-30 transition-colors"
+                                        className="text-xs px-2 py-1 bg-secondary rounded hover:bg-secondary/80 disabled:opacity-30 transition-colors"
                                         title="Move up"
                                       >
                                         ↑
@@ -1030,16 +1031,16 @@ export default function CompetitiveMatch() {
                                       <button
                                         onClick={() => handleLineMove(idx, "down")}
                                         disabled={idx === arrangedLines.length - 1}
-                                        className="text-xs px-2 py-1 bg-slate-800 rounded hover:bg-slate-700 disabled:opacity-30 transition-colors"
+                                        className="text-xs px-2 py-1 bg-secondary rounded hover:bg-secondary/80 disabled:opacity-30 transition-colors"
                                         title="Move down"
                                       >
                                         ↓
                                       </button>
                                     </div>
-                                    <div className="text-xs font-bold text-slate-500 w-8 text-center">
+                                    <div className="text-xs font-bold text-muted-foreground w-8 text-center">
                                       {idx + 1}
                                     </div>
-                                    <div className="flex-1 font-mono text-xs text-slate-300 bg-slate-950 p-3 rounded overflow-x-auto whitespace-pre">
+                                    <div className="flex-1 font-mono text-xs text-foreground bg-card p-3 rounded overflow-x-auto whitespace-pre">
                                       {line}
                                     </div>
                                   </div>
@@ -1057,8 +1058,8 @@ export default function CompetitiveMatch() {
                         onClick={handleRun}
                         disabled={loading}
                         className={`px-4 py-2 rounded font-medium ${loading
-                          ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
-                          : 'bg-slate-700 text-white hover:bg-slate-600'
+                          ? 'bg-secondary text-muted-foreground cursor-not-allowed'
+                          : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
                           }`}
                       >
                         {loading ? 'Running...' : '▶ Run & Preview'}
@@ -1067,7 +1068,7 @@ export default function CompetitiveMatch() {
                         onClick={handleSubmit}
                         disabled={loading}
                         className={`flex-1 px-4 py-2 rounded font-medium ${loading
-                          ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                          ? 'bg-secondary text-muted-foreground cursor-not-allowed'
                           : 'bg-purple-500 text-white hover:bg-purple-600'
                           }`}
                       >
@@ -1086,16 +1087,16 @@ export default function CompetitiveMatch() {
                   <h3 className="text-sm font-semibold text-blue-400 mb-2">
                     <span className="flex items-center gap-2"><Target size={16} /> Create comprehensive test cases</span>
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-muted-foreground">
                     Create diverse test cases covering edge cases. Minimum score: 60/100.
                   </p>
                 </div>
 
                 <div className="flex-1 overflow-y-auto space-y-3 mb-4">
                   {testCases.map((tc, idx) => (
-                    <div key={idx} className="border border-slate-700 rounded p-3 bg-slate-900">
+                    <div key={idx} className="border border-border rounded p-3 bg-muted">
                       <div className="flex items-center justify-between mb-2">
-                        <div className="text-xs font-semibold text-slate-400">Test Case {idx + 1}</div>
+                        <div className="text-xs font-semibold text-muted-foreground">Test Case {idx + 1}</div>
                         {testCases.length > 1 && (
                           <button
                             onClick={() => removeTestCase(idx)}
@@ -1107,21 +1108,21 @@ export default function CompetitiveMatch() {
                       </div>
                       <div className="space-y-2">
                         <div>
-                          <label className="text-xs text-slate-400 block mb-1">Input</label>
+                          <label className="text-xs text-muted-foreground block mb-1">Input</label>
                           <textarea
                             value={tc.input}
                             onChange={(e) => updateTestCase(idx, "input", e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-600 rounded p-2 text-xs font-mono"
+                            className="w-full bg-card border border-border rounded p-2 text-xs font-mono"
                             rows="2"
                             placeholder='e.g., [1, 2, 3]'
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-slate-400 block mb-1">Expected Output</label>
+                          <label className="text-xs text-muted-foreground block mb-1">Expected Output</label>
                           <textarea
                             value={tc.expected}
                             onChange={(e) => updateTestCase(idx, "expected", e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-600 rounded p-2 text-xs font-mono"
+                            className="w-full bg-card border border-border rounded p-2 text-xs font-mono"
                             rows="2"
                             placeholder='e.g., 6'
                           />
@@ -1135,13 +1136,13 @@ export default function CompetitiveMatch() {
                   <button
                     onClick={handleRun}
                     disabled={loading}
-                    className="px-4 py-2 rounded bg-slate-700 text-white hover:bg-slate-600"
+                    className="px-4 py-2 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80"
                   >
                     ▶ Review Test Cases
                   </button>
                   <button
                     onClick={addTestCase}
-                    className="px-4 py-2 rounded bg-slate-700 text-white hover:bg-slate-600"
+                    className="px-4 py-2 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80"
                   >
                     + Add Test Case
                   </button>
@@ -1149,7 +1150,7 @@ export default function CompetitiveMatch() {
                     onClick={handleSubmit}
                     disabled={loading}
                     className={`flex-1 px-4 py-2 rounded font-medium ${loading
-                      ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                      ? 'bg-secondary text-muted-foreground cursor-not-allowed'
                       : 'bg-blue-500 text-white hover:bg-blue-600'
                       }`}
                   >
@@ -1164,12 +1165,12 @@ export default function CompetitiveMatch() {
               {/* Editor */}
               <div className="flex-1 overflow-hidden">
                 <div className="h-full flex flex-col">
-                  <div className="p-2 bg-slate-900 border-b border-slate-700 flex items-center justify-between">
+                  <div className="p-2 bg-muted border-b border-border flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <select
                         value={language}
                         onChange={(e) => setLanguage(e.target.value)}
-                        className="bg-slate-800 text-xs px-2 py-1 rounded border border-slate-600"
+                        className="bg-card text-xs px-2 py-1 rounded border border-input"
                       >
                         <option value="python">Python</option>
                         <option value="cpp">C++</option>
@@ -1178,12 +1179,12 @@ export default function CompetitiveMatch() {
                       {gameMode === "bug_hunt" ? (
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-red-400 font-semibold">🐛 Bug Hunt Mode</span>
-                          <span className="text-xs text-slate-400">
+                          <span className="text-xs text-muted-foreground">
                             | Fix all bugs in the code below | ⚠️ Copy/Paste Disabled
                           </span>
                         </div>
                       ) : (
-                        <span className="text-xs text-slate-400">⚠️ Copy/Paste Disabled</span>
+                        <span className="text-xs text-muted-foreground">⚠️ Copy/Paste Disabled</span>
                       )}
                     </div>
 
@@ -1192,8 +1193,8 @@ export default function CompetitiveMatch() {
                         onClick={handleRun}
                         disabled={loading || !code.trim()}
                         className={`px-4 py-1 rounded text-xs font-medium ${loading || !code.trim()
-                          ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
-                          : 'bg-slate-700 text-white hover:bg-slate-600'
+                          ? 'bg-secondary text-muted-foreground cursor-not-allowed'
+                          : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
                           }`}
                       >
                         {loading ? 'Running...' : '▶ Run'}
@@ -1202,7 +1203,7 @@ export default function CompetitiveMatch() {
                         onClick={handleSubmit}
                         disabled={loading || !code.trim()}
                         className={`px-4 py-1 rounded text-xs font-medium ${loading || !code.trim()
-                          ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                          ? 'bg-secondary text-muted-foreground cursor-not-allowed'
                           : `bg-${modeInfo.color}-500 text-white hover:bg-${modeInfo.color}-600`
                           }`}
                       >
@@ -1226,9 +1227,9 @@ export default function CompetitiveMatch() {
 
           {/* Output */}
           {output && (
-            <div className="h-32 border-t border-slate-700 bg-slate-950 p-3 overflow-y-auto">
-              <div className="text-xs font-semibold text-slate-400 mb-1">Output</div>
-              <pre className="text-xs text-slate-300 font-mono whitespace-pre-wrap">
+            <div className="h-32 border-t border-border bg-card p-3 overflow-y-auto">
+              <div className="text-xs font-semibold text-muted-foreground mb-1">Output</div>
+              <pre className="text-xs text-foreground font-mono whitespace-pre-wrap">
                 {output}
               </pre>
             </div>
