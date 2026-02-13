@@ -1,12 +1,55 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-import { Zap, Bug, Target, Trophy, Lightbulb, CheckCircle2, XCircle, AlertTriangle, Play, Shuffle, Medal, Award, Clock as ClockIcon } from "lucide-react";
+import { Zap, Bug, Target, Trophy, Lightbulb, CheckCircle2, AlertTriangle, Play, Shuffle, Medal, Award, Clock as ClockIcon, Home, Check, X } from "lucide-react";
 import MonacoEditorWrapper from "../components/MonacoEditorWrapper";
 import { API_BASE } from "../utils/api";
-import { useToast } from "../context/ToastContext";
+
+// Theme detection helper
+const useTheme = () => {
+  const [isDark, setIsDark] = useState(() => {
+    // Check if light-theme class exists on document root
+    return !document.documentElement.classList.contains("light-theme");
+  });
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(!document.documentElement.classList.contains("light-theme"));
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  return isDark;
+};
+
+// Helper function to get theme-aware styles
+const getThemeClasses = (isDark) => ({
+  bg: {
+    primary: isDark ? 'bg-slate-950' : 'bg-gray-50',
+    secondary: isDark ? 'bg-slate-900' : 'bg-white',
+    tertiary: isDark ? 'bg-slate-800' : 'bg-gray-100',
+    hover: isDark ? 'hover:bg-slate-700' : 'hover:bg-gray-200',
+  },
+  text: {
+    primary: isDark ? 'text-white' : 'text-gray-900',
+    secondary: isDark ? 'text-slate-300' : 'text-gray-700',
+    tertiary: isDark ? 'text-slate-400' : 'text-gray-500',
+  },
+  border: {
+    light: isDark ? 'border-slate-700' : 'border-gray-200',
+    dark: isDark ? 'border-slate-600' : 'border-gray-300',
+  },
+});
 
 export default function CompetitiveMatch() {
+  const isDark = useTheme();
+  const theme = getThemeClasses(isDark);
   const { matchId } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -32,6 +75,11 @@ export default function CompetitiveMatch() {
   // For Match Completion Leaderboard
   const [matchCompleted, setMatchCompleted] = useState(false);
   const [finalResults, setFinalResults] = useState(null);
+  const pollIntervalRef = useRef(null);
+
+  // For Leave Game Confirmation
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [isLeavingGame, setIsLeavingGame] = useState(false);
 
   useEffect(() => {
     fetchMatch();
@@ -40,8 +88,65 @@ export default function CompetitiveMatch() {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
     };
   }, [matchId]);
+
+  // Poll for match completion (check every 2 seconds)
+  useEffect(() => {
+    if (matchCompleted || !matchId) return;
+
+    const pollMatchStatus = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const currentUserId = localStorage.getItem("userId");
+        
+        const res = await fetch(`${API_BASE}/competitive/matches/${matchId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (!res.ok) return;
+        
+        const data = await res.json();
+        
+        // Check if match has been completed
+        if (data.status === "completed" && !matchCompleted) {
+          console.log("[INFO] Match completed! Showing scoreboard for:", currentUserId);
+          
+          if (data.players && data.players.length >= 2) {
+            // Multiplayer match
+            const allPlayers = data.players;
+            const rank = allPlayers.findIndex(p => p.user_id === currentUserId) + 1;
+            
+            setFinalResults({
+              type: 'multiplayer',
+              rank: rank > 0 ? rank : 1,
+              score: allPlayers.find(p => p.user_id === currentUserId)?.score || 0,
+              players: allPlayers,
+              currentUserId
+            });
+          }
+          
+          setMatchCompleted(true);
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+          }
+        }
+      } catch (err) {
+        console.error("[DEBUG] Poll error:", err);
+      }
+    };
+    
+    // Start polling
+    pollIntervalRef.current = setInterval(pollMatchStatus, 2000);
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [matchId, matchCompleted]);
 
   // Update timer based on server start time
   useEffect(() => {
@@ -81,13 +186,13 @@ export default function CompetitiveMatch() {
 
     // Safety: Ensure we have a valid time limit
     if (timeLimit <= 0) {
-      console.log("⚠️ Invalid time limit:", timeLimit);
+      console.log("[WARNING] Invalid time limit:", timeLimit);
       return;
     }
 
     // Only check timeout for active matches
     if (match.status !== "active") {
-      console.log("⚠️ Match not active, status:", match.status);
+      console.log("[WARNING] Match not active, status:", match.status);
       return;
     }
 
@@ -100,7 +205,7 @@ export default function CompetitiveMatch() {
 
     // Only trigger timeout if timer reached 0 and has been running
     if (timeRemaining === 0 && timeElapsed >= timeLimit) {
-      console.log("⏰ TIME'S UP! Ending game automatically...");
+      console.log("[TIMEOUT] Game time expired - ending match automatically...");
       console.log(`   Time limit: ${timeLimit}s, Elapsed: ${timeElapsed}s`);
       handleTimeExpired();
     }
@@ -128,7 +233,7 @@ export default function CompetitiveMatch() {
       const data = await res.json();
 
       // Display scoreboard with current standings
-      if (data.players && data.players.length > 2) {
+      if (data.players && data.players.length >= 2) {
         // Multiplayer
         const sortedPlayers = [...data.players].sort((a, b) => {
           // Sort by problems solved (more is better), then by score (higher is better), then by time (faster is better)
@@ -193,7 +298,7 @@ export default function CompetitiveMatch() {
       }
 
       setMatchCompleted(true);
-      console.log("⏰ Game ended due to time expiration - showing final standings");
+      console.log("[INFO] Game ended due to time expiration - showing final standings");
     } catch (err) {
       console.error("Error handling time expiration:", err);
       showToast("Time's up! Failed to load final results.", "error");
@@ -217,17 +322,17 @@ export default function CompetitiveMatch() {
 
       const data = await res.json();
       console.log("Match data:", data);
-      console.log("📊 Match Status:", data.status);
-      console.log("📊 Player1 completed:", data.player1?.completed);
-      console.log("📊 Player2 completed:", data.player2?.completed);
-      console.log("📊 Winner ID:", data.winner_id);
-      console.log("📊 Time limit:", data.time_limit_seconds);
+      console.log("[INFO] Match Status:", data.status);
+      console.log("[INFO] Player1 completed:", data.player1?.completed);
+      console.log("[INFO] Player2 completed:", data.player2?.completed);
+      console.log("[INFO] Winner ID:", data.winner_id);
+      console.log("[INFO] Time limit:", data.time_limit_seconds);
       setMatch(data);
 
       // Set match start time for accurate timer calculation (survives page refresh)
       if (data.started_at) {
         setMatchStartTime(data.started_at);
-        console.log("⏰ Match started at:", data.started_at);
+        console.log("[INFO] Match started at:", data.started_at);
       }
 
       // 2. Determine Correct Problem ID (Multi-problem support)
@@ -254,7 +359,7 @@ export default function CompetitiveMatch() {
         }
 
         problemIdToFetch = data.problem_ids[currentProblemIndex];
-        console.log(`📡 Resuming at Problem ${currentProblemIndex + 1}/${data.problem_ids.length} (ID: ${problemIdToFetch})`);
+        console.log(`[INFO] Resuming at Problem ${currentProblemIndex + 1}/${data.problem_ids.length} (ID: ${problemIdToFetch})`);
       }
 
       // 3. Fetch Problem Details
@@ -266,12 +371,12 @@ export default function CompetitiveMatch() {
         const problemData = await problemRes.json();
 
         if (!problemRes.ok || problemData.detail) {
-          console.error("❌ Problem fetch failed:", problemData);
+          console.error("[ERROR] Problem fetch failed:", problemData);
           setProblem({ error: "Problem data missing or deleted. This match may be invalid." });
           return; // Stop loading
         }
 
-        console.log("✅ Problem loaded:", problemData.title);
+        console.log("[SUCCESS] Problem loaded:", problemData.title);
         setProblem(problemData);
 
         // Load Code / Game Mode Specifics
@@ -287,15 +392,33 @@ export default function CompetitiveMatch() {
     }
   };
 
-  // Helper to fix escaped newlines from seed data
+  // Helper to fix escaped newlines from seed data and normalize indentation
   const sanitizeCode = (codeStr) => {
     if (!codeStr) return "";
-    return codeStr.replace(/\\n/g, '\n');
+    // Replace escaped newlines
+    let code = codeStr.replace(/\\n/g, '\n');
+    
+    // Normalize indentation - ensure consistent spacing
+    const lines = code.split('\n');
+    const normalized = lines.map(line => {
+      // Fix lines with mismatched indentation
+      if (line.match(/^ +\S/) && !line.match(/^    /) && !line.match(/^  /)) {
+        // Likely has broken indentation - try to fix it
+        const stripped = line.trimStart();
+        const indent = line.length - stripped.length;
+        // Round indentation to nearest 4-space increment
+        const normalizedIndent = Math.round(indent / 4) * 4;
+        return ' '.repeat(normalizedIndent) + stripped;
+      }
+      return line;
+    });
+    
+    return normalized.join('\n');
   };
 
   const loadGameModeContent = (matchData, problemData, currentUserId) => {
     const gameMode = matchData.game_mode || "standard";
-    console.log("🎮 Game Mode:", gameMode);
+    console.log("[INFO] Game Mode:", gameMode);
 
     if (gameMode === "bug_hunt") {
       // Load buggy code for Bug Hunt mode
@@ -361,16 +484,16 @@ export default function CompetitiveMatch() {
       });
 
       const data = await res.json();
-      console.log("📥 Submission response:", data); // Debug log
+      console.log("[INFO] Submission response received", data); // Debug log
 
       if (res.ok) {
         // Multi-problem race: Check if there's a next problem
         if (data.next_problem) {
-          console.log("🎯 Next problem detected! Auto-loading...");
+          console.log("[INFO] Next problem detected! Auto-loading...");
           // Player solved current problem, load next one immediately
           setProblem(data.next_problem);
           setCode(data.next_problem.starterCode?.[language] || "");
-          setOutput(`✅ Problem ${data.problems_solved}/${data.total_problems} solved! Loading next problem...\n\nTime: ${data.time_elapsed?.toFixed(2) || 0}s | Score: ${data.score || 0}`);
+          setOutput(`[SUCCESS] Problem ${data.problems_solved}/${data.total_problems} solved! Loading next problem...\n\nTime: ${data.time_elapsed?.toFixed(2) || 0}s | Score: ${data.score || 0}`);
 
           // Update progress tracking if needed
           if (data.progress) {
@@ -383,7 +506,7 @@ export default function CompetitiveMatch() {
 
         // Check if all problems solved but waiting for others
         if (data.all_problems_complete && !data.winner_id && !data.winners) {
-          setOutput(`✅ All ${data.total_problems || 5} problems solved! Waiting for other players to finish...\n\nYour Score: ${data.score || 0}\nTime: ${data.time_elapsed?.toFixed(2) || 0}s`);
+          setOutput(`[SUCCESS] All ${data.total_problems || 5} problems solved! Waiting for other players to finish...\n\nYour Score: ${data.score || 0}\nTime: ${data.time_elapsed?.toFixed(2) || 0}s`);
           setLoading(false);
           return;
         }
@@ -391,22 +514,26 @@ export default function CompetitiveMatch() {
         if (data.winner_id || data.winners) {
           // Match completed - store results and show leaderboard
           const currentUserId = localStorage.getItem("userId");
-          console.log("🏆 MATCH COMPLETED! Showing scoreboard...");
-          console.log("📊 Completion data:", data);
+          console.log("[INFO] MATCH COMPLETED! Showing scoreboard...");
+          console.log("[INFO] Completion data:", data);
 
           if (data.winners) {
             // Multiplayer match completed
-            const rank = data.rank || players.findIndex(p => p.user_id === currentUserId) + 1;
+            const allPlayers = data.players || match?.players || [];
+            const rank = data.rank || allPlayers.findIndex(p => p.user_id === currentUserId) + 1;
+
+            console.log("[DEBUG] Match completed with players:", allPlayers.length);
+            console.log("[DEBUG] Players data:", allPlayers);
 
             setFinalResults({
               type: 'multiplayer',
               rank,
               score: data.final_score || data.score || 0,
               winners: data.winners,
-              players: data.players || players,
+              players: allPlayers,
               currentUserId
             });
-            console.log("🎮 Multiplayer scoreboard set");
+            console.log("[INFO] Multiplayer scoreboard set with", allPlayers.length, "players");
           } else {
             // 1v1 match completed
             const isWinner = data.winner_id === currentUserId;
@@ -435,11 +562,11 @@ export default function CompetitiveMatch() {
               xpBonus: data.xp_bonus,
               currentUserId
             });
-            console.log("🎮 1v1 scoreboard set");
+            console.log("[INFO] 1v1 scoreboard set");
           }
 
           setMatchCompleted(true);
-          console.log("✅ matchCompleted set to TRUE - scoreboard should display now!");
+          console.log("[SUCCESS] matchCompleted set to TRUE - scoreboard should display now!");
 
           // Scoreboard stays visible until user clicks "Back to Competitive"
           // No auto-redirect - user controls when to leave
@@ -448,7 +575,7 @@ export default function CompetitiveMatch() {
             clearInterval(timerRef.current);
           }
         } else {
-          const waitMsg = data.message || "✅ Solution submitted! Waiting for other players to finish...";
+          const waitMsg = data.message || "[SUCCESS] Solution submitted! Waiting for other players to finish...";
           if (data.score) {
             setOutput(`${waitMsg}\n\nYour Score: ${data.score}`);
           } else {
@@ -460,11 +587,11 @@ export default function CompetitiveMatch() {
           clearInterval(timerRef.current);
         }
       } else {
-        setOutput(`❌ ${data.detail || "Submission failed"}`);
+        setOutput(`[ERROR] ${data.detail || "Submission failed"}`);
       }
     } catch (err) {
       console.error("Error submitting solution:", err);
-      setOutput("❌ Error submitting solution");
+      setOutput("[ERROR] Error submitting solution");
     } finally {
       setLoading(false);
     }
@@ -478,7 +605,21 @@ export default function CompetitiveMatch() {
       const arrangedCode = arrangedLines.join('\n');
 
       if (!arrangedCode.trim()) {
-        setOutput("⚠️ Please arrange some code lines first!");
+        setOutput("[WARNING] Please arrange some code lines first!");
+        return;
+      }
+
+      // Check if problem has test cases or examples
+      const sampleInput = problem.examples?.[0]?.input || problem.testCases?.[0]?.input || "";
+      const expectedOutput = problem.examples?.[0]?.output || problem.testCases?.[0]?.expected || "";
+
+      if (!sampleInput.trim()) {
+        setOutput(
+          `[INFO] Your Arranged Code:\n${arrangedCode}\n\n` +
+          `[WARNING] Cannot test - no sample input available\n\n` +
+          `[TIP] This problem doesn't have test cases defined. Your arrangement will be validated when you submit!\n` +
+          `[INFO] Submit your arrangement to have it officially tested against all test cases.`
+        );
         return;
       }
 
@@ -487,10 +628,6 @@ export default function CompetitiveMatch() {
 
       try {
         const token = localStorage.getItem("token");
-
-        // Use the first example or test case as a sample
-        const sampleInput = problem.examples?.[0]?.input || problem.testCases?.[0]?.input || "";
-        const expectedOutput = problem.examples?.[0]?.output || problem.testCases?.[0]?.expected || "";
 
         const res = await fetch(`${API_BASE}/execute/run`, {
           method: "POST",
@@ -513,24 +650,40 @@ export default function CompetitiveMatch() {
           const passed = actualOutput === expected;
 
           setOutput(
-            `📋 Your Arranged Code:\n${arrangedCode}\n\n` +
-            `🧪 Sample Test Result:\n\n` +
+            `[INFO] Your Arranged Code:\n${arrangedCode}\n\n` +
+            `[TEST] Sample Test Result:\n\n` +
             `Input:\n${sampleInput}\n\n` +
             `Expected Output:\n${expected}\n\n` +
             `Your Output:\n${actualOutput}\n\n` +
-            `Status: ${passed ? '✅ PASSED' : '❌ FAILED'}\n\n` +
-            `💡 This is just a sample test. Submit to check arrangement accuracy!`
+            `Status: ${passed ? '[PASSED]' : '[FAILED]'}\n\n` +
+            `[TIP] This is just a sample test. Submit to check arrangement accuracy!`
           );
         } else {
-          setOutput(
-            `📋 Your Arranged Code:\n${arrangedCode}\n\n` +
-            `❌ Runtime Error:\n\n${data.error || data.output}\n\n` +
-            `💡 The code arrangement might be incorrect or have syntax errors!`
-          );
+          // Check if it's an indentation error
+          const errorMsg = data.error || data.output || "";
+          const isIndentationError = errorMsg.includes("IndentationError") || errorMsg.includes("indent");
+          
+          if (isIndentationError) {
+            setOutput(
+              `[INFO] Your Arranged Code:\n${arrangedCode}\n\n` +
+              `[ERROR] Indentation Error:\n\n${errorMsg}\n\n` +
+              `[TIP] The lines might be in the wrong order. Check that:\n` +
+              `  1. Control structures (if/for/while) are before their bodies\n` +
+              `  2. Indentation levels match the code structure\n` +
+              `  3. Related lines are together in logical order\n\n` +
+              `Try rearranging the lines to fix the indentation!`
+            );
+          } else {
+            setOutput(
+              `[INFO] Your Arranged Code:\n${arrangedCode}\n\n` +
+              `[ERROR] Runtime Error:\n\n${errorMsg}\n\n` +
+              `[TIP] The code arrangement might be incorrect or have syntax errors!`
+            );
+          }
         }
       } catch (err) {
         console.error("Error running arranged code:", err);
-        setOutput("❌ Error running code. Please try again.");
+        setOutput("[ERROR] Error running code. Please try again.");
       } finally {
         setLoading(false);
       }
@@ -541,23 +694,23 @@ export default function CompetitiveMatch() {
       // For Test Master, show created test cases
       const validTestCases = testCases.filter(tc => tc.input || tc.expected);
       if (validTestCases.length === 0) {
-        setOutput("⚠️ No test cases created yet. Add some test cases to review.");
+        setOutput("[WARNING] No test cases created yet. Add some test cases to review.");
         return;
       }
-      let output = `📋 Your Test Cases (${validTestCases.length} total):\n\n`;
+      let output = `[INFO] Your Test Cases (${validTestCases.length} total):\n\n`;
       validTestCases.forEach((tc, idx) => {
         output += `Test Case ${idx + 1}:\n`;
         output += `  Input: ${tc.input || '(empty)'}\n`;
         output += `  Expected: ${tc.expected || '(empty)'}\n\n`;
       });
-      output += "💡 Tip: Make sure to include edge cases!";
+      output += "[TIP] Tip: Make sure to include edge cases!";
       setOutput(output);
       return;
     }
 
     // For Standard and Bug Hunt modes - run code with sample tests
     if (!code.trim()) {
-      setOutput("⚠️ Please write some code first!");
+      setOutput("[WARNING] Please write some code first!");
       return;
     }
 
@@ -592,22 +745,38 @@ export default function CompetitiveMatch() {
         const passed = actualOutput === expected;
 
         setOutput(
-          `🧪 Sample Test Result:\n\n` +
+          `[TEST] Sample Test Result:\n\n` +
           `Input:\n${sampleInput}\n\n` +
           `Expected Output:\n${expected}\n\n` +
           `Your Output:\n${actualOutput}\n\n` +
-          `Status: ${passed ? '✅ PASSED' : '❌ FAILED'}\n\n` +
-          `💡 This is just a sample test. Submit to run all test cases!`
+          `Status: ${passed ? '[PASSED]' : '[FAILED]'}\n\n` +
+          `[TIP] This is just a sample test. Submit to run all test cases!`
         );
       } else {
-        setOutput(
-          `❌ Runtime Error:\n\n${data.error || data.output}\n\n` +
-          `💡 Fix the error and try again!`
-        );
+        // Check for indentation errors and provide helpful feedback
+        const errorMsg = data.error || data.output || "";
+        const isIndentationError = errorMsg.includes("IndentationError") || errorMsg.includes("indent does not match");
+        
+        if (isIndentationError) {
+          setOutput(
+            `[ERROR] Indentation Error:\n\n${errorMsg}\n\n` +
+            `[TIP] In Bug Hunt mode, you need to fix the indentation:\n` +
+            `  1. Check that the indentation is consistent (use spaces, not tabs)\n` +
+            `  2. Make sure code inside if/for/while blocks is indented 4 more spaces\n` +
+            `  3. Code at the same level should have the same indentation\n` +
+            `  4. Use the editor's auto-format if available\n\n` +
+            `[HINT] This is likely a bug that needs to be fixed!`
+          );
+        } else {
+          setOutput(
+            `[ERROR] Runtime Error:\n\n${errorMsg}\n\n` +
+            `[TIP] Fix the error and try again!`
+          );
+        }
       }
     } catch (err) {
       console.error("Error running code:", err);
-      setOutput("❌ Error running code. Please try again.");
+      setOutput("[ERROR] Error running code. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -632,6 +801,36 @@ export default function CompetitiveMatch() {
       showToast("Hint used! Note: This reduces your potential XP bonus.", "info");
     } catch (err) {
       console.error("Error using hint:", err);
+    }
+  };
+
+  const handleLeaveGame = async () => {
+    setIsLeavingGame(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/competitive/matches/${matchId}/leave`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (res.ok) {
+        // Clear the leave confirmation dialog
+        setShowLeaveConfirm(false);
+        // Navigate back to competitive page
+        alert("You have left the game and been marked as lost.");
+        navigate("/competitive");
+      } else {
+        const error = await res.json();
+        alert("Error leaving game: " + (error.detail || "Failed to leave game"));
+      }
+    } catch (err) {
+      console.error("Error leaving game:", err);
+      alert("Failed to leave game. Please try again.");
+    } finally {
+      setIsLeavingGame(false);
     }
   };
 
@@ -680,6 +879,8 @@ export default function CompetitiveMatch() {
     setTestCases(newTestCases);
   };
 
+
+
   const getGameModeInfo = () => {
     const mode = match?.game_mode || "standard";
     const modes = {
@@ -692,9 +893,9 @@ export default function CompetitiveMatch() {
 
   if (!match || !problem) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-muted-foreground flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-muted-foreground"></div>
+      <div className={`flex items-center justify-center h-screen ${theme.bg.primary}`}>
+        <div className={`${theme.text.tertiary} flex flex-col items-center gap-4`}>
+          <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${isDark ? 'border-slate-400' : 'border-gray-600'}`}></div>
           <div>Loading match...</div>
         </div>
       </div>
@@ -704,17 +905,17 @@ export default function CompetitiveMatch() {
   // Error State - Problem Missing or Match Invalid
   if (problem?.error) {
     return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="text-center p-8 bg-card rounded-lg border border-red-900/50 max-w-md">
+      <div className={`flex items-center justify-center h-screen ${theme.bg.primary}`}>
+        <div className={`text-center p-8 ${theme.bg.secondary} rounded-lg border border-red-900/50 max-w-md`}>
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-foreground mb-2">Match Validation Failed</h2>
-          <p className="text-muted-foreground mb-6">{problem.error}</p>
-          <p className="text-xs text-muted-foreground mb-6">
+          <h2 className={`text-xl font-bold ${theme.text.primary} mb-2`}>Match Validation Failed</h2>
+          <p className={`${theme.text.secondary} mb-6`}>{problem.error}</p>
+          <p className={`text-xs ${theme.text.tertiary} mb-6`}>
             This usually happens if the problem database was updated while you were in a match.
           </p>
           <button
             onClick={() => navigate('/competitive')}
-            className="px-6 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-md transition-colors"
+            className={`px-6 py-2 ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-gray-200 hover:bg-gray-300'} ${theme.text.primary} rounded-md transition-colors`}
           >
             ← Back to Competitive
           </button>
@@ -730,38 +931,44 @@ export default function CompetitiveMatch() {
   const modeInfo = getGameModeInfo();
 
   // Check if this is a multiplayer match
-  const isMultiplayer = match.players && match.players.length > 2;
+  const isMultiplayer = match.players && match.players.length >= 2;
   const players = match.players || [match.player1, match.player2].filter(p => p);
   const currentUserId = localStorage.getItem("userId");
   const currentPlayer = players.find(p => p.user_id === currentUserId);
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className={`w-screen h-screen flex flex-col fixed inset-0 ${isDark 
+      ? 'bg-slate-950' 
+      : 'bg-gray-50'
+      }`}>
       {/* Header */}
-      <div className="border-b border-border p-4 bg-muted/30">
+      <div className={`border-b ${isDark 
+        ? 'border-slate-700 bg-slate-900' 
+        : 'border-gray-200 bg-white'
+        } p-4`}>
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-lg font-semibold flex items-center gap-2">
+            <h1 className={`text-lg font-semibold flex items-center gap-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
               <span>{modeInfo.icon}</span>
               <span>{modeInfo.name}</span>
               {isMultiplayer ? (
-                <span className="text-sm text-muted-foreground">
+                <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
                   {players.length} Players
                   {match.game_id && <span className="ml-2 font-mono text-purple-400">{match.game_id}</span>}
                 </span>
               ) : (
-                <span className="text-sm text-muted-foreground">
+                <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
                   {match.player1?.username || 'Player 1'} vs {match.player2?.username || "Waiting..."}
                 </span>
               )}
             </h1>
-            <p className="text-xs text-muted-foreground">{problem.title}</p>
+            <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>{problem.title}</p>
           </div>
 
           <div className="flex items-center gap-4">
             {/* Timer */}
-            <div className={`text-right ${timeRemaining < 60 ? 'text-red-400' : 'text-muted-foreground'}`}>
-              <div className="text-xs text-muted-foreground">Time Remaining</div>
+            <div className={`text-right ${timeRemaining < 60 ? 'text-red-400' : isDark ? 'text-slate-300' : 'text-gray-700'}`}>
+              <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>Time Remaining</div>
               <div className="text-xl font-mono font-bold">
                 {formatTime(timeRemaining)}
               </div>
@@ -770,12 +977,27 @@ export default function CompetitiveMatch() {
             {/* Player Status */}
             {isMultiplayer ? (
               <div className="text-right">
-                <div className="text-xs text-muted-foreground">Completed</div>
-                <div className="text-sm font-medium text-foreground">
+                <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>Completed</div>
+                <div className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
                   {players.filter(p => p.completed).length} / {players.length}
                 </div>
               </div>
             ) : null}
+
+            {/* Leave Game Button */}
+            <button
+              onClick={() => setShowLeaveConfirm(true)}
+              disabled={matchCompleted}
+              className={`px-3 py-2 rounded text-xs font-medium flex items-center gap-2 transition-colors ${
+                matchCompleted
+                  ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                  : 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30'
+              }`}
+              title="Leave the game - you will be marked as lost"
+            >
+              <X size={16} />
+              Leave
+            </button>
           </div>
         </div>
 
@@ -784,13 +1006,13 @@ export default function CompetitiveMatch() {
           <div className="mb-3 space-y-2">
             {/* Player 1 (Current User) */}
             <div className="flex items-center gap-3">
-              <div className="w-32 text-xs text-muted-foreground font-medium truncate">
+              <div className={`w-32 text-xs ${isDark ? 'text-slate-300' : 'text-gray-700'} font-medium truncate`}>
                 {match.player1?.username || 'Player 1'}
                 {match.player1?.user_id === currentUserId && (
                   <span className="ml-1 text-purple-400">(You)</span>
                 )}
               </div>
-              <div className="flex-1 bg-secondary rounded-full h-2 overflow-hidden relative">
+              <div className={`flex-1 ${isDark ? 'bg-slate-700' : 'bg-gray-300'} rounded-full h-2 overflow-hidden relative`}>
                 <div
                   className={`h-2 rounded-full transition-all duration-500 ease-out ${match.player1?.completed ? 'bg-emerald-500' : 'bg-blue-500'
                     }`}
@@ -801,7 +1023,7 @@ export default function CompetitiveMatch() {
               </div>
               <div className="w-20 text-xs text-right">
                 {match.player1?.completed ? (
-                  <span className="text-emerald-400 font-medium">✓ Done</span>
+                  <span className="text-emerald-400 font-medium flex items-center gap-1"><Check size={14} /> Completed</span>
                 ) : (
                   <span className="text-blue-400">
                     {match.player1?.problems_solved || 0}/{match.total_problems || 5} solved
@@ -812,13 +1034,13 @@ export default function CompetitiveMatch() {
 
             {/* Player 2 (Opponent) */}
             <div className="flex items-center gap-3">
-              <div className="w-32 text-xs text-muted-foreground font-medium truncate">
+              <div className={`w-32 text-xs ${isDark ? 'text-slate-300' : 'text-gray-700'} font-medium truncate`}>
                 {match.player2?.username || 'Player 2'}
                 {match.player2?.user_id === currentUserId && (
                   <span className="ml-1 text-purple-400">(You)</span>
                 )}
               </div>
-              <div className="flex-1 bg-secondary rounded-full h-2 overflow-hidden relative">
+              <div className={`flex-1 ${isDark ? 'bg-slate-700' : 'bg-gray-300'} rounded-full h-2 overflow-hidden relative`}>
                 <div
                   className={`h-2 rounded-full transition-all duration-500 ease-out ${match.player2?.completed ? 'bg-emerald-500' : 'bg-purple-500'
                     }`}
@@ -829,7 +1051,7 @@ export default function CompetitiveMatch() {
               </div>
               <div className="w-20 text-xs text-right">
                 {match.player2.completed ? (
-                  <span className="text-emerald-400 font-medium">✓ Done</span>
+                  <span className="text-emerald-400 font-medium flex items-center gap-1"><Check size={14} /> Completed</span>
                 ) : (
                   <span className="text-purple-400">
                     {match.player2.problems_solved || 0}/{match.total_problems || 5} solved
@@ -850,19 +1072,19 @@ export default function CompetitiveMatch() {
                   ? 'border-purple-500 bg-purple-500/20 text-purple-300'
                   : player?.completed
                     ? 'border-green-500 bg-green-500/20 text-green-300'
-                    : 'border-border bg-secondary text-muted-foreground'
+                    : isDark ? 'border-slate-600 bg-slate-800 text-slate-400' : 'border-gray-300 bg-gray-200 text-gray-600'
                   }`}
               >
                 {player?.rank && <span className="font-bold mr-1">#{player.rank}</span>}
                 {player?.username || `Player ${idx + 1}`}
-                {player?.completed && <span className="ml-1">✓</span>}
+                {player?.completed && <Check size={14} className="ml-1" />}
               </div>
             ))}
           </div>
         )}
 
         {/* Progress bar */}
-        <div className="w-full bg-secondary rounded-full h-1">
+        <div className={`w-full ${isDark ? 'bg-slate-700' : 'bg-gray-300'} rounded-full h-1`}>
           <div
             className={`h-1 rounded-full transition-all ${timeProgress > 90 ? 'bg-red-500' :
               timeProgress > 70 ? 'bg-orange-500' :
@@ -875,9 +1097,9 @@ export default function CompetitiveMatch() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Problem Description */}
-        <div className="w-1/3 border-r border-border overflow-y-auto p-4 bg-card">
+        <div className={`w-1/3 border-r ${theme.border.light} overflow-y-auto p-4 ${theme.bg.primary}`}>
           <div className="mb-4">
-            <h2 className="text-sm font-semibold mb-2 text-emerald-400">Problem</h2>
+            <h2 className={`text-sm font-semibold mb-2 text-emerald-400`}>Problem</h2>
             <div className="mb-2">
               <span className={`text-xs px-2 py-1 rounded ${problem.difficulty === 'Easy' ? 'bg-green-500/20 text-green-400' :
                 problem.difficulty === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' :
@@ -886,32 +1108,33 @@ export default function CompetitiveMatch() {
                 {problem.difficulty}
               </span>
             </div>
-            <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{problem.description}</p>
+            <p className={`text-sm ${theme.text.secondary} leading-relaxed whitespace-pre-line`}>{problem.description}</p>
           </div>
 
           {problem.examples && problem.examples.length > 0 && (
             <div className="mb-4">
               <h3 className="text-sm font-semibold mb-2 text-blue-400">Examples</h3>
-              {problem.examples.map((ex, idx) => <div key={idx} className="mb-3 p-3 bg-muted rounded border border-border">
-                <div className="text-xs mb-1 text-muted-foreground">Example {idx + 1}</div>
-                <div className="text-xs space-y-2">
-                  <div>
-                    <div className="text-muted-foreground font-semibold mb-1">Input:</div>
-                    <div className="font-mono text-xs text-emerald-400 bg-secondary p-2 rounded whitespace-pre">{ex.input}</div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground font-semibold mb-1">Output:</div>
-                    <div className="font-mono text-xs text-blue-400 bg-secondary p-2 rounded whitespace-pre">{ex.output}</div>
-                  </div>
-                  {ex.explanation && (
+              {problem.examples.map((ex, idx) => (
+                <div key={idx} className={`mb-3 p-3 ${theme.bg.tertiary} rounded ${theme.border.light} border`}>
+                  <div className={`text-xs mb-1 ${theme.text.tertiary}`}>Example {idx + 1}</div>
+                  <div className="text-xs space-y-2">
                     <div>
-                      <div className="text-muted-foreground font-semibold mb-1">Explanation:</div>
-                      <div className="text-xs text-muted-foreground">{ex.explanation}</div>
+                      <div className={`${theme.text.secondary} font-semibold mb-1`}>Input:</div>
+                      <div className={`font-mono text-xs text-emerald-400 ${theme.bg.secondary} p-2 rounded whitespace-pre`}>{ex.input}</div>
                     </div>
-                  )}
+                    <div>
+                      <div className={`${theme.text.secondary} font-semibold mb-1`}>Output:</div>
+                      <div className={`font-mono text-xs text-blue-400 ${theme.bg.secondary} p-2 rounded whitespace-pre`}>{ex.output}</div>
+                    </div>
+                    {ex.explanation && (
+                      <div>
+                        <div className={`${theme.text.secondary} font-semibold mb-1`}>Explanation:</div>
+                        <div className={`text-xs ${theme.text.secondary}`}>{ex.explanation}</div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-              )}
+              ))}
             </div>
           )}
 
@@ -931,7 +1154,7 @@ export default function CompetitiveMatch() {
                 </span>
               </button>
               {usedHints && (
-                <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-300">
+                <div className={`mt-2 p-2 border rounded text-xs ${isDark ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300' : 'bg-yellow-50 border-yellow-200 text-yellow-700'}`}>
                   {problem.hint}
                 </div>
               )}
@@ -964,7 +1187,7 @@ export default function CompetitiveMatch() {
               <div className="h-full flex flex-col">
                 <div className="mb-3">
                   <h3 className="text-sm font-semibold text-purple-400 mb-2">
-                    🔀 Arrange the code lines in the correct order
+                    Arrange the code lines in the correct order
                   </h3>
                   <p className="text-xs text-muted-foreground">
                     Drag lines to reorder or use arrow buttons. At least 80% accuracy required.
@@ -974,13 +1197,13 @@ export default function CompetitiveMatch() {
                 {arrangedLines.length === 0 ? (
                   /* No lines available - show error */
                   <div className="flex-1 flex items-center justify-center">
-                    <div className="text-center p-8 bg-red-500/10 border border-red-500/30 rounded-lg">
+                    <div className={`text-center p-8 rounded-lg border ${isDark ? 'bg-red-500/10 border-red-500/30' : 'bg-red-50 border-red-300'}`}>
                       <AlertTriangle size={48} className="text-red-400 mx-auto mb-4" />
                       <h3 className="text-lg font-semibold text-red-400 mb-2">No Code Lines Available</h3>
-                      <p className="text-sm text-muted-foreground mb-4">
+                      <p className={`text-sm mb-4 ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
                         This problem doesn't have reference code for shuffling.
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
                         Please try a different problem or contact an administrator.
                       </p>
                     </div>
@@ -1005,17 +1228,17 @@ export default function CompetitiveMatch() {
                                   <div
                                     ref={provided.innerRef}
                                     {...provided.draggableProps}
-                                    className={`flex items-center gap-2 bg-muted border rounded p-2 transition-all ${snapshot.isDragging
+                                    className={`flex items-center gap-2 ${isDark ? 'bg-slate-900' : 'bg-white'} border rounded p-2 transition-all ${snapshot.isDragging
                                       ? 'border-purple-500 shadow-lg shadow-purple-500/20 scale-105'
-                                      : 'border-border'
+                                      : isDark ? 'border-slate-700' : 'border-gray-300'
                                       }`}
                                   >
                                     <div
                                       {...provided.dragHandleProps}
-                                      className="cursor-grab active:cursor-grabbing p-2 hover:bg-secondary rounded"
+                                      className={`cursor-grab active:cursor-grabbing p-2 rounded ${isDark ? 'hover:bg-slate-800' : 'hover:bg-gray-100'}`}
                                       title="Drag to reorder"
                                     >
-                                      <svg className="w-4 h-4 text-muted-foreground" fill="currentColor" viewBox="0 0 20 20">
+                                      <svg className={`w-4 h-4 ${isDark ? 'text-slate-400' : 'text-gray-600'}`} fill="currentColor" viewBox="0 0 20 20">
                                         <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                                       </svg>
                                     </div>
@@ -1023,7 +1246,7 @@ export default function CompetitiveMatch() {
                                       <button
                                         onClick={() => handleLineMove(idx, "up")}
                                         disabled={idx === 0}
-                                        className="text-xs px-2 py-1 bg-secondary rounded hover:bg-secondary/80 disabled:opacity-30 transition-colors"
+                                        className={`text-xs px-2 py-1 rounded disabled:opacity-30 transition-colors ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-gray-200 hover:bg-gray-300'}`}
                                         title="Move up"
                                       >
                                         ↑
@@ -1031,16 +1254,16 @@ export default function CompetitiveMatch() {
                                       <button
                                         onClick={() => handleLineMove(idx, "down")}
                                         disabled={idx === arrangedLines.length - 1}
-                                        className="text-xs px-2 py-1 bg-secondary rounded hover:bg-secondary/80 disabled:opacity-30 transition-colors"
+                                        className={`text-xs px-2 py-1 rounded disabled:opacity-30 transition-colors ${isDark ? 'bg-slate-800 hover:bg-slate-700' : 'bg-gray-200 hover:bg-gray-300'}`}
                                         title="Move down"
                                       >
                                         ↓
                                       </button>
                                     </div>
-                                    <div className="text-xs font-bold text-muted-foreground w-8 text-center">
+                                    <div className={`text-xs font-bold w-8 text-center ${isDark ? 'text-slate-500' : 'text-gray-600'}`}>
                                       {idx + 1}
                                     </div>
-                                    <div className="flex-1 font-mono text-xs text-foreground bg-card p-3 rounded overflow-x-auto whitespace-pre">
+                                    <div className={`flex-1 font-mono text-xs p-3 rounded overflow-x-auto whitespace-pre ${isDark ? 'text-slate-300 bg-slate-950' : 'text-gray-700 bg-gray-100'}`}>
                                       {line}
                                     </div>
                                   </div>
@@ -1058,8 +1281,8 @@ export default function CompetitiveMatch() {
                         onClick={handleRun}
                         disabled={loading}
                         className={`px-4 py-2 rounded font-medium ${loading
-                          ? 'bg-secondary text-muted-foreground cursor-not-allowed'
-                          : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                          ? isDark ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                          : isDark ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-gray-300 text-gray-900 hover:bg-gray-400'
                           }`}
                       >
                         {loading ? 'Running...' : '▶ Run & Preview'}
@@ -1087,16 +1310,16 @@ export default function CompetitiveMatch() {
                   <h3 className="text-sm font-semibold text-blue-400 mb-2">
                     <span className="flex items-center gap-2"><Target size={16} /> Create comprehensive test cases</span>
                   </h3>
-                  <p className="text-xs text-muted-foreground">
+                  <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
                     Create diverse test cases covering edge cases. Minimum score: 60/100.
                   </p>
                 </div>
 
                 <div className="flex-1 overflow-y-auto space-y-3 mb-4">
                   {testCases.map((tc, idx) => (
-                    <div key={idx} className="border border-border rounded p-3 bg-muted">
+                    <div key={idx} className={`border rounded p-3 ${isDark ? 'border-slate-700 bg-slate-900' : 'border-gray-300 bg-gray-100'}`}>
                       <div className="flex items-center justify-between mb-2">
-                        <div className="text-xs font-semibold text-muted-foreground">Test Case {idx + 1}</div>
+                        <div className={`text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-gray-700'}`}>Test Case {idx + 1}</div>
                         {testCases.length > 1 && (
                           <button
                             onClick={() => removeTestCase(idx)}
@@ -1108,21 +1331,21 @@ export default function CompetitiveMatch() {
                       </div>
                       <div className="space-y-2">
                         <div>
-                          <label className="text-xs text-muted-foreground block mb-1">Input</label>
+                          <label className={`text-xs block mb-1 ${isDark ? 'text-slate-400' : 'text-gray-700'}`}>Input</label>
                           <textarea
                             value={tc.input}
                             onChange={(e) => updateTestCase(idx, "input", e.target.value)}
-                            className="w-full bg-card border border-border rounded p-2 text-xs font-mono"
+                            className={`w-full border rounded p-2 text-xs font-mono ${isDark ? 'bg-slate-950 border-slate-600 text-slate-300' : 'bg-white border-gray-400 text-gray-900'}`}
                             rows="2"
                             placeholder='e.g., [1, 2, 3]'
                           />
                         </div>
                         <div>
-                          <label className="text-xs text-muted-foreground block mb-1">Expected Output</label>
+                          <label className={`text-xs block mb-1 ${isDark ? 'text-slate-400' : 'text-gray-700'}`}>Expected Output</label>
                           <textarea
                             value={tc.expected}
                             onChange={(e) => updateTestCase(idx, "expected", e.target.value)}
-                            className="w-full bg-card border border-border rounded p-2 text-xs font-mono"
+                            className={`w-full border rounded p-2 text-xs font-mono ${isDark ? 'bg-slate-950 border-slate-600 text-slate-300' : 'bg-white border-gray-400 text-gray-900'}`}
                             rows="2"
                             placeholder='e.g., 6'
                           />
@@ -1136,13 +1359,13 @@ export default function CompetitiveMatch() {
                   <button
                     onClick={handleRun}
                     disabled={loading}
-                    className="px-4 py-2 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    className={`px-4 py-2 rounded ${isDark ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-gray-300 text-gray-900 hover:bg-gray-400'}`}
                   >
                     ▶ Review Test Cases
                   </button>
                   <button
                     onClick={addTestCase}
-                    className="px-4 py-2 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    className={`px-4 py-2 rounded ${isDark ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-gray-300 text-gray-900 hover:bg-gray-400'}`}
                   >
                     + Add Test Case
                   </button>
@@ -1165,12 +1388,12 @@ export default function CompetitiveMatch() {
               {/* Editor */}
               <div className="flex-1 overflow-hidden">
                 <div className="h-full flex flex-col">
-                  <div className="p-2 bg-muted border-b border-border flex items-center justify-between">
+                  <div className={`p-2 flex items-center justify-between border-b ${isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200'}`}>
                     <div className="flex items-center gap-3">
                       <select
                         value={language}
                         onChange={(e) => setLanguage(e.target.value)}
-                        className="bg-card text-xs px-2 py-1 rounded border border-input"
+                        className={`text-xs px-2 py-1 rounded border ${isDark ? 'bg-slate-800 border-slate-600' : 'bg-gray-100 border-gray-400'}`}
                       >
                         <option value="python">Python</option>
                         <option value="cpp">C++</option>
@@ -1178,13 +1401,13 @@ export default function CompetitiveMatch() {
                       </select>
                       {gameMode === "bug_hunt" ? (
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-red-400 font-semibold">🐛 Bug Hunt Mode</span>
-                          <span className="text-xs text-muted-foreground">
-                            | Fix all bugs in the code below | ⚠️ Copy/Paste Disabled
+                          <span className="text-xs text-red-400 font-semibold">Bug Hunt Mode</span>
+                          <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
+                            | Fix all bugs in the code below | Copy/Paste Disabled
                           </span>
                         </div>
                       ) : (
-                        <span className="text-xs text-muted-foreground">⚠️ Copy/Paste Disabled</span>
+                        <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>Copy/Paste Disabled</span>
                       )}
                     </div>
 
@@ -1193,8 +1416,8 @@ export default function CompetitiveMatch() {
                         onClick={handleRun}
                         disabled={loading || !code.trim()}
                         className={`px-4 py-1 rounded text-xs font-medium ${loading || !code.trim()
-                          ? 'bg-secondary text-muted-foreground cursor-not-allowed'
-                          : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                          ? isDark ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                          : isDark ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-gray-300 text-gray-900 hover:bg-gray-400'
                           }`}
                       >
                         {loading ? 'Running...' : '▶ Run'}
@@ -1202,10 +1425,19 @@ export default function CompetitiveMatch() {
                       <button
                         onClick={handleSubmit}
                         disabled={loading || !code.trim()}
-                        className={`px-4 py-1 rounded text-xs font-medium ${loading || !code.trim()
-                          ? 'bg-secondary text-muted-foreground cursor-not-allowed'
-                          : `bg-${modeInfo.color}-500 text-white hover:bg-${modeInfo.color}-600`
-                          }`}
+                        className={`px-4 py-1 rounded text-xs font-medium ${
+                          modeInfo.color === 'emerald'
+                            ? loading || !code.trim()
+                              ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                              : 'bg-emerald-500 text-white hover:bg-emerald-600'
+                            : modeInfo.color === 'purple'
+                              ? loading || !code.trim()
+                                ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                                : 'bg-purple-500 text-white hover:bg-purple-600'
+                              : loading || !code.trim()
+                                ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                                : 'bg-red-500 text-white hover:bg-red-600'
+                        }`}
                       >
                         {loading ? 'Submitting...' : 'Submit Solution'}
                       </button>
@@ -1227,9 +1459,9 @@ export default function CompetitiveMatch() {
 
           {/* Output */}
           {output && (
-            <div className="h-32 border-t border-border bg-card p-3 overflow-y-auto">
-              <div className="text-xs font-semibold text-muted-foreground mb-1">Output</div>
-              <pre className="text-xs text-foreground font-mono whitespace-pre-wrap">
+            <div className={`h-32 border-t ${theme.border.light} ${theme.bg.primary} p-3 overflow-y-auto`}>
+              <div className={`text-xs font-semibold ${theme.text.tertiary} mb-1`}>Output</div>
+              <pre className={`text-xs ${theme.text.secondary} font-mono whitespace-pre-wrap`}>
                 {output}
               </pre>
             </div>
@@ -1237,12 +1469,55 @@ export default function CompetitiveMatch() {
         </div>
       </div>
 
+      {/* Leave Game Confirmation Dialog */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`rounded-xl shadow-2xl max-w-md w-full border-2 border-red-500/50 ${isDark ? 'bg-slate-900' : 'bg-white'}`}>
+            <div className="p-8">
+              <div className="flex items-center justify-center mb-4">
+                <div className="bg-red-500/20 rounded-full p-3">
+                  <AlertTriangle size={32} className="text-red-400" />
+                </div>
+              </div>
+              <h2 className={`text-2xl font-bold text-center mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Leave Game?</h2>
+              <p className={`text-center mb-6 ${isDark ? 'text-slate-300' : 'text-gray-600'}`}>
+                If you leave now, you will be <span className="font-bold text-red-400">marked as lost</span> in this match. This cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowLeaveConfirm(false)}
+                  disabled={isLeavingGame}
+                  className={`flex-1 px-4 py-2 rounded font-medium transition-colors ${
+                    isDark
+                      ? 'bg-slate-800 hover:bg-slate-700 text-white'
+                      : 'bg-gray-300 hover:bg-gray-400 text-gray-900'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLeaveGame}
+                  disabled={isLeavingGame}
+                  className={`flex-1 px-4 py-2 rounded font-medium text-white transition-colors ${
+                    isLeavingGame
+                      ? 'bg-red-600/50 cursor-not-allowed'
+                      : 'bg-red-500 hover:bg-red-600'
+                  }`}
+                >
+                  {isLeavingGame ? 'Leaving...' : 'Yes, Leave Game'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Match Completion Leaderboard Overlay */}
       {matchCompleted && finalResults && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-gradient-to-br from-slate-900 via-purple-900/30 to-slate-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border-2 border-purple-500/30">
             {(() => {
-              console.log("🎨 Rendering scoreboard overlay! Type:", finalResults.type);
+              console.log("[INFO] Rendering scoreboard overlay! Type:", finalResults.type);
               return null;
             })()}
             {finalResults.type === '1v1' ? (
@@ -1253,7 +1528,7 @@ export default function CompetitiveMatch() {
                   <Trophy size={64} className="text-yellow-400 mx-auto mb-4 animate-bounce" />
                   <h1 className="text-4xl font-bold text-white mb-2">Match Complete!</h1>
                   <p className="text-xl text-slate-300">
-                    {finalResults.isWinner ? '🎉 Victory!' : 'Better luck next time!'}
+                    {finalResults.isWinner ? 'Victory Achieved!' : 'Better luck next time!'}
                   </p>
                 </div>
 
@@ -1268,16 +1543,16 @@ export default function CompetitiveMatch() {
                       {finalResults.player1.isWinner && (
                         <Trophy size={32} className="text-yellow-400 mx-auto mb-2" />
                       )}
-                      <div className={`text-2xl font-bold mb-2 ${finalResults.player1.isWinner ? 'text-yellow-400' : 'text-slate-300'
+                      <div className={`text-2xl font-bold mb-2 ${finalResults.player1.isWinner ? 'text-yellow-400' : isDark ? 'text-slate-300' : 'text-gray-900'
                         }`}>
                         {finalResults.player1.username}
                       </div>
                       {finalResults.player1.userId === finalResults.currentUserId && (
                         <div className="text-sm text-purple-400 mb-2">(You)</div>
                       )}
-                      <div className={`text-sm font-medium mb-1 ${finalResults.player1.isWinner ? 'text-yellow-300' : 'text-slate-400'
+                      <div className={`text-sm font-medium mb-1 ${finalResults.player1.isWinner ? 'text-yellow-300' : isDark ? 'text-slate-400' : 'text-gray-600'
                         }`}>
-                        {finalResults.player1.isWinner ? '🏆 Winner' : '2nd Place'}
+                        {finalResults.player1.isWinner ? 'Champion' : '2nd Place'}
                       </div>
                       <div className="flex items-center justify-center gap-2 text-slate-300 mt-3">
                         <ClockIcon size={16} />
@@ -1289,22 +1564,22 @@ export default function CompetitiveMatch() {
                   {/* Player 2 */}
                   <div className={`p-6 rounded-xl border-2 ${finalResults.player2.isWinner
                     ? 'border-yellow-500 bg-yellow-500/10'
-                    : 'border-slate-700 bg-slate-800/50'
+                    : isDark ? 'border-slate-700 bg-slate-800/50' : 'border-gray-300 bg-gray-100'
                     }`}>
                     <div className="text-center">
                       {finalResults.player2.isWinner && (
                         <Trophy size={32} className="text-yellow-400 mx-auto mb-2" />
                       )}
-                      <div className={`text-2xl font-bold mb-2 ${finalResults.player2.isWinner ? 'text-yellow-400' : 'text-slate-300'
+                      <div className={`text-2xl font-bold mb-2 ${finalResults.player2.isWinner ? 'text-yellow-400' : isDark ? 'text-slate-300' : 'text-gray-900'
                         }`}>
                         {finalResults.player2.username}
                       </div>
                       {finalResults.player2.userId === finalResults.currentUserId && (
                         <div className="text-sm text-purple-400 mb-2">(You)</div>
                       )}
-                      <div className={`text-sm font-medium mb-1 ${finalResults.player2.isWinner ? 'text-yellow-300' : 'text-slate-400'
+                      <div className={`text-sm font-medium mb-1 ${finalResults.player2.isWinner ? 'text-yellow-300' : isDark ? 'text-slate-400' : 'text-gray-600'
                         }`}>
-                        {finalResults.player2.isWinner ? '🏆 Winner' : '2nd Place'}
+                        {finalResults.player2.isWinner ? 'Champion' : '2nd Place'}
                       </div>
                       <div className="flex items-center justify-center gap-2 text-slate-300 mt-3">
                         <ClockIcon size={16} />
@@ -1315,10 +1590,10 @@ export default function CompetitiveMatch() {
                 </div>
 
                 {/* Rating Change */}
-                <div className="bg-slate-800/50 rounded-lg p-4 mb-6">
+                <div className={`rounded-lg p-4 mb-6 ${isDark ? 'bg-slate-800/50' : 'bg-gray-200'}`}>
                   <div className="grid grid-cols-2 gap-4 text-center">
                     <div>
-                      <div className="text-xs text-slate-400 mb-1">Rating Change</div>
+                      <div className={`text-xs mb-1 ${isDark ? 'text-slate-400' : 'text-gray-700'}`}>Rating Change</div>
                       <div className={`text-2xl font-bold ${finalResults.isWinner ? 'text-green-400' : 'text-red-400'
                         }`}>
                         {finalResults.isWinner ? '+' : '-'}{finalResults.ratingChange || 0}
@@ -1326,7 +1601,7 @@ export default function CompetitiveMatch() {
                     </div>
                     {finalResults.isWinner && finalResults.xpBonus && (
                       <div>
-                        <div className="text-xs text-slate-400 mb-1">XP Bonus</div>
+                        <div className={`text-xs mb-1 ${isDark ? 'text-slate-400' : 'text-gray-700'}`}>XP Bonus</div>
                         <div className="text-2xl font-bold text-emerald-400">
                           +{finalResults.xpBonus}
                         </div>
@@ -1339,9 +1614,10 @@ export default function CompetitiveMatch() {
                 <div className="flex gap-4">
                   <button
                     onClick={() => navigate("/competitive")}
-                    className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-3 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all"
+                    className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-3 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all flex items-center justify-center gap-2"
                   >
-                    🏠 Return to Lobby
+                    <Home size={20} />
+                    Return to Lobby
                   </button>
                 </div>
               </div>
@@ -1351,15 +1627,15 @@ export default function CompetitiveMatch() {
                 {/* Header */}
                 <div className="text-center mb-8">
                   <Award size={64} className="text-yellow-400 mx-auto mb-4 animate-bounce" />
-                  <h1 className="text-4xl font-bold text-white mb-2">Match Complete!</h1>
-                  <p className="text-xl text-slate-300">
+                  <h1 className={`text-4xl font-bold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Match Complete!</h1>
+                  <p className={`text-xl ${isDark ? 'text-slate-300' : 'text-gray-700'}`}>
                     Your Rank: #{finalResults.rank}
                   </p>
                 </div>
 
                 {/* Leaderboard */}
-                <div className="bg-slate-800/50 rounded-xl p-6 mb-6">
-                  <h2 className="text-xl font-bold text-white mb-4">Final Rankings</h2>
+                <div className={`rounded-xl p-6 mb-6 ${isDark ? 'bg-slate-800/50' : 'bg-gray-200'}`}>
+                  <h2 className={`text-xl font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Final Rankings</h2>
                   <div className="space-y-3">
                     {(finalResults.players || []).map((player, idx) => {
                       const rank = idx + 1;
@@ -1368,7 +1644,7 @@ export default function CompetitiveMatch() {
                         if (rank === 1) return <Trophy size={24} className="text-yellow-400" />;
                         if (rank === 2) return <Medal size={24} className="text-gray-400" />;
                         if (rank === 3) return <Medal size={24} className="text-orange-600" />;
-                        return <div className="w-6 h-6 flex items-center justify-center text-slate-400 font-bold">{rank}</div>;
+                        return <div className={`w-6 h-6 flex items-center justify-center font-bold ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>{rank}</div>;
                       };
 
                       return (
@@ -1376,7 +1652,7 @@ export default function CompetitiveMatch() {
                           key={player?.user_id || idx}
                           className={`flex items-center gap-4 p-4 rounded-lg border-2 ${isCurrentUser
                             ? 'border-purple-500 bg-purple-500/20'
-                            : 'border-slate-700 bg-slate-900/50'
+                            : isDark ? 'border-slate-700 bg-slate-900/50' : 'border-gray-300 bg-gray-100'
                             }`}
                         >
                           <div className="flex-shrink-0">
@@ -1384,14 +1660,14 @@ export default function CompetitiveMatch() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className={`font-bold ${isCurrentUser ? 'text-purple-300' : 'text-white'}`}>
+                              <span className={`font-bold ${isCurrentUser ? 'text-purple-300' : isDark ? 'text-white' : 'text-gray-900'}`}>
                                 {player?.username || `Player ${idx + 1}`}
                               </span>
                               {isCurrentUser && (
                                 <span className="text-xs text-purple-400">(You)</span>
                               )}
                             </div>
-                            <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
+                            <div className={`flex items-center gap-3 mt-1 text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
                               <span>Score: {player.score || finalResults.score || 0}</span>
                               {player.completion_time && (
                                 <span className="flex items-center gap-1">
@@ -1403,14 +1679,14 @@ export default function CompetitiveMatch() {
                           </div>
                         </div>
                       );
-                    })}
+                    })}  
                   </div>
                 </div>
 
                 {/* Your Stats */}
-                <div className="bg-slate-800/50 rounded-lg p-4 mb-6">
+                <div className={`rounded-lg p-4 mb-6 ${isDark ? 'bg-slate-800/50' : 'bg-gray-200'}`}>
                   <div className="text-center">
-                    <div className="text-xs text-slate-400 mb-1">Your Final Score</div>
+                    <div className={`text-xs mb-1 ${isDark ? 'text-slate-400' : 'text-gray-700'}`}>Your Final Score</div>
                     <div className="text-3xl font-bold text-emerald-400">
                       {finalResults.score}
                     </div>
@@ -1421,9 +1697,10 @@ export default function CompetitiveMatch() {
                 <div className="flex gap-4">
                   <button
                     onClick={() => navigate("/competitive")}
-                    className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-3 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all"
+                    className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-3 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all flex items-center justify-center gap-2"
                   >
-                    🏠 Return to Lobby
+                    <Home size={20} />
+                    Return to Lobby
                   </button>
                 </div>
               </div>

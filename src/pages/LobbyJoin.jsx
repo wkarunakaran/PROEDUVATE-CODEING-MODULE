@@ -27,8 +27,8 @@ export default function LobbyJoin() {
 
     setLoading(true);
     try {
-      console.log("🎮 Attempting to join lobby:", gameId.toUpperCase().trim());
-
+      console.log("[INFO] Attempting to join lobby:", gameId.toUpperCase().trim());
+      
       const res = await fetch(`${API_BASE}/competitive/lobby/join`, {
         method: "POST",
         headers: {
@@ -40,8 +40,8 @@ export default function LobbyJoin() {
 
       if (!res.ok) {
         const error = await res.json();
-        console.error("❌ Join error:", error);
-
+        console.error("[ERROR] Join error:", error);
+        
         // Handle specific error cases
         if (res.status === 401) {
           showToast("Your session has expired. Please login again.", "error");
@@ -53,8 +53,8 @@ export default function LobbyJoin() {
       }
 
       const data = await res.json();
-      console.log("✅ Successfully joined lobby:", data.lobby.game_id);
-
+      console.log("[SUCCESS] Successfully joined lobby:", data.lobby.game_id);
+      
       // Navigate to lobby room
       navigate(`/lobby/${data.lobby.game_id}`);
     } catch (err) {

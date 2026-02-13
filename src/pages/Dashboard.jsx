@@ -136,8 +136,8 @@ export default function Dashboard({
                     </div>
                     <div className="w-28">
                       <ProgressBar value={progress} />
-                      <div className="text-[10px] text-muted-foreground mt-1 text-right">
-                        {completed ? "Completed ✓" : "In progress"}
+                      <div className="text-[10px] text-slate-400 mt-1 text-right">
+                        {completed ? "Completed" : "In progress"}
                       </div>
                     </div>
                   </div>

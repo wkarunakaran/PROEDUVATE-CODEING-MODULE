@@ -88,7 +88,7 @@ export default function Competitive({ attempts, problems, stats }) {
     try {
       const token = localStorage.getItem("token");
 
-      console.log("🎮 Starting matchmaking with game mode:", gameMode);
+      console.log("[INFO] Starting matchmaking with game mode:", gameMode);
 
       const res = await fetch(`${API_BASE}/competitive/matchmaking`, {
         method: "POST",
@@ -239,13 +239,13 @@ export default function Competitive({ attempts, problems, stats }) {
         <h2 className="text-sm font-semibold mb-2">Game Modes Explained</h2>
         <div className="space-y-2 text-muted-foreground">
           <div>
-            <span className="font-medium text-emerald-600 dark:text-emerald-400">⚡ Code Sprint:</span> Classic competitive programming. Both players solve the same problem. Fastest correct solution wins.
+            <span className="font-medium text-emerald-400">Code Sprint:</span> Classic competitive programming. Both players solve the same problem. Fastest correct solution wins.
           </div>
           <div>
-            <span className="font-medium text-red-600 dark:text-red-400">🐛 Bug Hunt:</span> Given buggy code with intentional errors. Debug and fix the code to make all tests pass. Speed matters!
+            <span className="font-medium text-red-400">Bug Hunt:</span> Given buggy code with intentional errors. Debug and fix the code to make all tests pass. Speed matters!
           </div>
           <div>
-            <span className="font-medium text-purple-600 dark:text-purple-400">🔀 Code Shuffle:</span> Code lines are shuffled randomly. Rearrange them in the correct logical order. Tests accuracy and code understanding.
+            <span className="font-medium text-purple-400">Code Shuffle:</span> Code lines are shuffled randomly. Rearrange them in the correct logical order. Tests accuracy and code understanding.
           </div>
         </div>
       </div>

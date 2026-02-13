@@ -17,25 +17,25 @@ export default function LobbyRoom() {
   useEffect(() => {
     const userId = localStorage.getItem("userId");
     const username = localStorage.getItem("username");
-    console.log("👤 Current User:", { userId, username });
-
+    console.log("[INFO] Current User:", { userId, username });
+    
     // If userId is missing, fetch it
     if (!userId) {
-      console.log("⚠️ userId not in localStorage, fetching from API...");
+      console.log("[WARNING] userId not in localStorage, fetching from API...");
       const token = localStorage.getItem("token");
       if (token) {
         fetch(`${API_BASE}/users/me`, {
           headers: { "Authorization": `Bearer ${token}` }
         })
-          .then(res => res.json())
-          .then(data => {
-            console.log("✅ Fetched user data:", data);
-            localStorage.setItem("userId", data.id);
-            localStorage.setItem("username", data.username);
-            setCurrentUserId(data.id);
-            setCurrentUsername(data.username);
-          })
-          .catch(err => console.error("❌ Failed to fetch user:", err));
+        .then(res => res.json())
+        .then(data => {
+          console.log("[SUCCESS] Fetched user data:", data);
+          localStorage.setItem("userId", data.id);
+          localStorage.setItem("username", data.username);
+          setCurrentUserId(data.id);
+          setCurrentUsername(data.username);
+        })
+        .catch(err => console.error("[ERROR] Failed to fetch user:", err));
       }
     } else {
       setCurrentUserId(userId);
@@ -53,14 +53,14 @@ export default function LobbyRoom() {
     try {
       const token = localStorage.getItem("token");
       if (!token) {
-        console.error("❌ No authentication token found");
-        showToast("You must be logged in to view this lobby", "error");
+        console.error("[ERROR] No authentication token found");
+        alert("You must be logged in to view this lobby");
         navigate("/login");
         return;
       }
-
-      console.log("🔄 Fetching lobby:", gameId);
-
+      
+      console.log("[INFO] Fetching lobby:", gameId);
+      
       const res = await fetch(`${API_BASE}/competitive/lobby/${gameId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -75,14 +75,19 @@ export default function LobbyRoom() {
       }
 
       const data = await res.json();
-      console.log("✅ Lobby data received:", data.game_id, "Players:", data.players.length);
+      console.log("[SUCCESS] Lobby data received:", data.game_id, "Players:", data.players.length);
       setLobby(data);
       setLoading(false);
 
       // If game started, navigate to match
       if (data.status === "active" && data.match_id) {
-        console.log("🎮 Game started! Redirecting to match:", data.match_id);
-        navigate(`/competitive/${data.match_id}`);
+        console.log("[INFO] Game started! Redirecting to match:", data.match_id);
+        // Check game mode and redirect accordingly
+        if (data.game_mode === "code_quiz") {
+          navigate(`/quiz/${data.match_id}`);
+        } else {
+          navigate(`/competitive/${data.match_id}`);
+        }
       }
     } catch (err) {
       console.error("Error fetching lobby:", err);
@@ -106,9 +111,13 @@ export default function LobbyRoom() {
       }
 
       const data = await res.json();
-      console.log("🚀 Game started! Match ID:", data.match_id);
-      // Redirect to match immediately
-      navigate(`/competitive/${data.match_id}`);
+      console.log("[ROCKET] Game started! Match ID:", data.match_id);
+      // Redirect to match immediately - check game mode
+      if (lobby.game_mode === "code_quiz") {
+        navigate(`/quiz/${data.match_id}`);
+      } else {
+        navigate(`/competitive/${data.match_id}`);
+      }
     } catch (err) {
       console.error("Error starting game:", err);
       showToast(err.message || "Failed to start game", "error");
@@ -156,7 +165,7 @@ export default function LobbyRoom() {
   const maxPlayers = lobby.max_players;
 
   // Debug host check
-  console.log("🔍 Host Check:", {
+  console.log("[DEBUG] Host Check:", {
     lobby_host_id: lobby.host_id,
     lobby_host_username: lobby.host_username,
     current_user_id: currentUserId,
@@ -245,7 +254,7 @@ export default function LobbyRoom() {
                   className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold py-5 px-8 rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl text-lg flex items-center justify-center gap-3"
                 >
                   <Gamepad2 size={24} />
-                  {playerCount < 2 ? "⏳ Need at least 2 players to start" : "🚀 Start Game Now!"}
+                  {playerCount < 2 ? "Need at least 2 players to start" : "Start Game Now!"}
                 </button>
               ) : (
                 <div className="flex-1 bg-yellow-600/20 border-2 border-yellow-600 text-yellow-700 dark:text-yellow-300 font-bold py-5 px-8 rounded-xl text-center text-lg flex items-center justify-center gap-3">
@@ -257,15 +266,15 @@ export default function LobbyRoom() {
                 onClick={handleLeaveLobby}
                 className="sm:w-48 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-5 px-8 rounded-xl transition-all shadow-xl text-lg flex items-center justify-center gap-2"
               >
-                <span>🚪</span> Leave Lobby
+                <span>✕</span> Leave Lobby
               </button>
             </div>
 
             {/* Host instructions */}
             {isHost && playerCount >= 2 && (
               <div className="mt-4 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
-                <p className="text-green-700 dark:text-green-300 text-center font-semibold">
-                  ✅ Ready to start! All players are in the lobby. Click "Start Game Now!" when ready.
+                <p className="text-green-300 text-center font-semibold">
+                  Ready to start! All players are in the lobby. Click "Start Game Now!" when ready.
                 </p>
               </div>
             )}
@@ -273,8 +282,9 @@ export default function LobbyRoom() {
             {/* Non-host info */}
             {!isHost && (
               <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                <p className="text-blue-700 dark:text-blue-500 text-center">
-                  👑 <span className="font-semibold">{lobby.host_username}</span> is the host and will start the game
+                <p className="text-blue-300 text-center flex items-center justify-center gap-2">
+                  <Crown size={18} className="text-yellow-400" />
+                  <span className="font-semibold">{lobby.host_username}</span> is the host and will start the game
                 </p>
               </div>
             )}

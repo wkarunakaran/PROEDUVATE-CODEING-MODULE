@@ -88,8 +88,8 @@ export default function Profile({
                 </div>
                 <div className="w-32">
                   <ProgressBar value={progress} />
-                  <div className="text-[10px] text-muted-foreground mt-1 text-right">
-                    {att?.finalCompleted ? "Completed ✓" : "In progress"}
+                  <div className="text-[10px] text-slate-400 mt-1 text-right">
+                    {att?.finalCompleted ? "Completed" : "In progress"}
                   </div>
                 </div>
               </div>
