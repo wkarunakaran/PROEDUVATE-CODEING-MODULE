@@ -11,6 +11,7 @@ import tempfile
 import os
 import time
 import shutil
+import re
 from pathlib import Path
 
 
@@ -205,8 +206,6 @@ def extract_class_name(code):
     Returns:
         Class name or None if not found
     """
-    import re
-    
     # Look for public class declaration
     match = re.search(r'public\s+class\s+(\w+)', code)
     if match:

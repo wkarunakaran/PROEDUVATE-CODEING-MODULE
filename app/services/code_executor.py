@@ -2,6 +2,8 @@ import subprocess
 import tempfile
 import os
 import time
+import re
+import shutil
 from typing import Dict, Any, List
 from app.core.config import get_settings
 
@@ -211,9 +213,6 @@ class CodeExecutor:
         start_time: float
     ) -> Dict[str, Any]:
         """Execute Java code locally"""
-        import re
-        import shutil
-        
         temp_dir = None
         try:
             # Create temporary directory for Java files
@@ -310,8 +309,6 @@ class CodeExecutor:
 
     def _extract_java_class_name(self, code: str) -> str:
         """Extract the public class name from Java code"""
-        import re
-        
         # Look for public class declaration
         match = re.search(r'public\s+class\s+(\w+)', code)
         if match:
