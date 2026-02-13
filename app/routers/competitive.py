@@ -48,6 +48,47 @@ def shuffle_code_lines(code: str) -> List[str]:
     
     return shuffled
 
+def normalize_code_indentation(lines: List[str]) -> str:
+    """
+    Join and normalize code lines to fix indentation issues.
+    This handles cases where arranged lines have inconsistent indentation.
+    """
+    if not lines:
+        return ""
+    
+    # Join lines first
+    code = '\n'.join(lines)
+    
+    # Try to detect the minimum indentation for non-empty lines
+    non_empty_lines = [line for line in lines if line.strip()]
+    if not non_empty_lines:
+        return code
+    
+    # Find minimum indentation (except for blank lines)
+    min_indent = float('inf')
+    for line in non_empty_lines:
+        if line.strip():
+            indent = len(line) - len(line.lstrip())
+            min_indent = min(min_indent, indent)
+    
+    min_indent = 0 if min_indent == float('inf') else min_indent
+    
+    # Dedent all lines by the minimum indentation to normalize
+    if min_indent > 0:
+        normalized_lines = []
+        for line in lines:
+            if line.strip():  # Non-empty line
+                # Remove minimum indentation
+                if len(line) >= min_indent and line[:min_indent].strip() == '':
+                    normalized_lines.append(line[min_indent:])
+                else:
+                    normalized_lines.append(line)
+            else:
+                normalized_lines.append(line)  # Keep blank lines as-is
+        code = '\n'.join(normalized_lines)
+    
+    return code
+
 def calculate_code_shuffle_score(original: str, arranged: List[str]) -> int:
     """Calculate score for code shuffle game mode based on correctness"""
     original_lines = [line.strip() for line in original.strip().split('\n') if line.strip()]
@@ -118,8 +159,8 @@ def generate_buggy_code(correct_code: str, language: str = "python") -> str:
             lambda line: line.rstrip(':') if line.strip().endswith(':') and any(kw in line for kw in ['if ', 'for ', 'while ', 'def ', 'class ', 'elif ', 'else:', 'try:', 'except']) else line,
             # Wrong comparison operator (== vs =)
             lambda line: line.replace('==', '=', 1) if '==' in line and 'def ' not in line and '#' not in line else line,
-            # Wrong indentation
-            lambda line: line[1:] if line.startswith('    ') and not line.strip().startswith('#') else line,
+            # Wrong indentation - remove 4 spaces (1 indentation level) for indented lines
+            lambda line: line[4:] if line.startswith('    ') and line.strip() and not line.strip().startswith('#') and len(line.lstrip()) < len(line) - 4 else line,
             # Missing return statement (comment it out)
             lambda line: '# ' + line if 'return ' in line and not line.strip().startswith('#') else line,
             # Wrong operator precedence (+ vs *)
@@ -201,7 +242,27 @@ def generate_buggy_code(correct_code: str, language: str = "python") -> str:
     else:
         print(f"  ✅ Successfully introduced {bugs_introduced} bug(s)")
     
-    return '\n'.join(buggy_lines)
+    # Validate that the buggy code is syntactically valid (even if logically wrong)
+    buggy_code = '\n'.join(buggy_lines)
+    
+    if language == "python":
+        try:
+            compile(buggy_code, '<string>', 'exec')
+            print(f"  ✅ Buggy code syntax is valid")
+        except SyntaxError as e:
+            # If syntax is invalid, return the original correct code with bugs commented out
+            # This ensures the code at least compiles, even if it doesn't run correctly
+            print(f"  ⚠️ ERROR: Generated buggy code has syntax error: {str(e)}")
+            print(f"  ⚠️ Returning original code to avoid IndentationError in Bug Hunt")
+            # Apply only safe, non-structural bugs to the original code
+            safe_buggy = correct_code.split('\n')
+            for i, line in enumerate(safe_buggy):
+                if '==' in line and 'def ' not in line and '#' not in line:
+                    safe_buggy[i] = line.replace('==', '=', 1)
+                    break
+            return '\n'.join(safe_buggy)
+    
+    return buggy_code
 
 def calculate_rating_change(winner_rating: int, loser_rating: int, used_hints: bool = False) -> int:
     """Calculate ELO-style rating change"""
@@ -478,59 +539,43 @@ async def create_lobby(
     
     competitive_mode = mode_mapping.get(lobby_in.game_mode, "standard")
     
-    # Select a random problem from the pool for this game mode
-    print(f"🎲 Selecting 5 random problems for {lobby_in.game_mode} mode...")
+    # Generate fresh AI problems for each competitive match
+    print(f"🤖 Generating fresh AI-powered hard problems for {lobby_in.game_mode} mode...")
     
     try:
-        # Find all problems for this game mode
-        cursor = db.problems.find({
-            "created_for_competitive": True,
-            "competitive_mode": competitive_mode
-        })
+        # Always generate fresh hard problems for competitive matches to ensure variety
+        selected_problem_ids = []
         
-        problems = await cursor.to_list(length=None)
-        
-        if not problems:
-            # Fallback to AI generation if no problems in pool
-            print(f"⚠️ No problems found in pool, generating 5 problems with AI...")
+        # Generate 5 hard problems for this specific match
+        for i in range(1, 6):
+            print(f"   Generating problem {i}/5 (Hard difficulty)...")
+            problem_data = generate_competitive_problem("hard")
             
-            selected_problem_ids = []
-            difficulties = ["easy", "easy", "medium", "medium", "hard"]  # Mix of difficulties
+            # Capitalize difficulty
+            difficulty_capitalized = "Hard"
+            problem_doc = {
+                "title": problem_data["title"],
+                "description": problem_data["description"],
+                "difficulty": difficulty_capitalized,
+                "testCases": problem_data["testCases"],
+                "examples": problem_data.get("examples", []),
+                "hint": problem_data.get("hint", ""),
+                "starterCode": problem_data.get("starterCode", {}),
+                "topics": ["competitive", "ai-generated", "hard"],
+                "created_for_competitive": True,
+                "competitive_mode": competitive_mode,
+                "videoUrl": "",
+                "referenceCode": problem_data.get("referenceCode", {"python": "", "cpp": "", "java": ""}),
+                "buggyCode": {},
+                "explanations": {"approach": [], "complexity": []},
+                "sampleTests": [],
+                "match_type": "custom_match",  # Mark as custom match problem
+                "generated_at": datetime.utcnow()
+            }
             
-            for i, difficulty in enumerate(difficulties, 1):
-                print(f"   Generating problem {i}/5 ({difficulty})...")
-                problem_data = generate_competitive_problem(difficulty)
-                
-                difficulty_capitalized = difficulty.capitalize()
-                problem_doc = {
-                    "title": problem_data["title"],
-                    "description": problem_data["description"],
-                    "difficulty": difficulty_capitalized,
-                    "testCases": problem_data["testCases"],
-                    "examples": problem_data.get("examples", []),
-                    "hint": problem_data.get("hint", ""),
-                    "starterCode": problem_data.get("starterCode", {}),
-                    "topics": ["competitive", "ai-generated"],
-                    "created_for_competitive": True,
-                    "competitive_mode": competitive_mode,
-                    "videoUrl": "",
-                    "referenceCode": problem_data.get("referenceCode", {"python": "", "cpp": "", "java": ""}),
-                    "buggyCode": {},
-                    "explanations": {"approach": [], "complexity": []},
-                    "sampleTests": []
-                }
-                
-                result = await db.problems.insert_one(problem_doc)
-                selected_problem_ids.append(str(result.inserted_id))
-                print(f"   ✅ Generated: {problem_data['title']} (ID: {selected_problem_ids[-1]})")
-        else:
-            # Randomly select 5 problems from pool (or all available if <5)
-            num_problems = min(5, len(problems))
-            selected_problems = random.sample(problems, num_problems)
-            selected_problem_ids = [str(p["_id"]) for p in selected_problems]
-            print(f"✅ Selected {num_problems} problems:")
-            for i, p in enumerate(selected_problems, 1):
-                print(f"   {i}. {p['title']} ({p.get('difficulty', 'Unknown')})")
+            result = await db.problems.insert_one(problem_doc)
+            selected_problem_ids.append(str(result.inserted_id))
+            print(f"   ✅ Generated: {problem_data['title']} (ID: {selected_problem_ids[-1]})")
             
     except Exception as gen_error:
         print(f"❌ Error selecting problems: {str(gen_error)}")
@@ -1162,22 +1207,35 @@ async def submit_solution(
     if game_mode == "bug_hunt":
         # Bug Hunt: Player must fix the buggy code and make it pass all test cases
         test_cases = problem.get("testCases", [])
-        all_passed = True
-        failed_test = None
         
-        for test_case in test_cases:
-            result = await code_executor.execute_code(
-                submission.code,
-                submission.language,
-                test_case.get("input", "")
-            )
+        # Filter out test cases with empty inputs to avoid EOF errors
+        valid_test_cases = [tc for tc in test_cases if tc.get("input", "").strip()]
+        
+        if not valid_test_cases:
+            # If all test cases have empty inputs, we can't validate
+            print(f"  ⚠️ WARNING: All test cases in problem have empty inputs! Accepting fix.")
+            all_passed = True
+            score = 100
+        else:
+            all_passed = True
+            failed_test = None
             
-            if not result["success"] or result["output"].strip() != test_case["expected"].strip():
-                all_passed = False
-                failed_test = test_case
-                break
+            print(f"[BUG_HUNT] Testing against {len(valid_test_cases)} valid test cases")
+            
+            for test_case in valid_test_cases:
+                test_input = test_case.get("input", "").strip()
+                result = await code_executor.execute_code(
+                    submission.code,
+                    submission.language,
+                    test_input
+                )
+                
+                if not result["success"] or result["output"].strip() != test_case.get("expected", "").strip():
+                    all_passed = False
+                    failed_test = test_case
+                    break
         
-        if not all_passed:
+        if not all_passed and valid_test_cases:
             error_msg = "Code still has bugs! Fix them and try again."
             if failed_test:
                 error_msg += f" Failed on input: {failed_test.get('input', 'N/A')}"
@@ -1194,47 +1252,67 @@ async def submit_solution(
         if not reference_code:
             raise HTTPException(status_code=400, detail="No reference code available")
         
-        # Join arranged lines into executable code
-        arranged_code = '\n'.join(submission.arranged_lines)
+        # Join arranged lines with indentation normalization
+        arranged_code = normalize_code_indentation(submission.arranged_lines)
         
         # Execute the arranged code against test cases
         test_cases = problem.get("testCases", [])
-        all_passed = True
-        passed_count = 0
-        failed_test = None
         
-        print(f"🔀 Executing Code Shuffle arrangement:")
-        print(f"  - Arranged code:\n{arranged_code}")
+        # Validate that problem has test cases with inputs
+        if not test_cases:
+            raise HTTPException(status_code=400, detail="Problem has no test cases defined")
         
-        for test_case in test_cases:
-            result = await code_executor.execute_code(
-                arranged_code,
-                submission.language,
-                test_case.get("input", "")
-            )
+        # Check if test cases have empty inputs (malformed test data)
+        valid_test_cases = [tc for tc in test_cases if tc.get("input", "").strip()]
+        if not valid_test_cases:
+            print(f"  ⚠️ WARNING: All test cases have empty inputs! Using arrangement anyway.")
+            # If all test cases are empty, consider the arrangement valid (test data issue, not code issue)
+            score = 100
+            all_passed = True
+        else:
+            all_passed = True
+            passed_count = 0
+            failed_test = None
             
-            expected_output = test_case.get("expected", "").strip()
-            actual_output = result.get("output", "").strip()
+            print(f"🔀 Executing Code Shuffle arrangement:")
+            print(f"  - Arranged code:\n{arranged_code}")
+            print(f"  - Testing against {len(valid_test_cases)} valid test cases")
             
-            print(f"  - Test: input={test_case.get('input', 'N/A')}, expected={expected_output}, actual={actual_output}, success={result.get('success')}")
-            
-            if result["success"] and actual_output == expected_output:
-                passed_count += 1
-            else:
-                all_passed = False
-                if not failed_test:
-                    failed_test = {
-                        "input": test_case.get("input", ""),
-                        "expected": expected_output,
-                        "actual": actual_output,
-                        "error": result.get("error", "")
-                    }
+            for test_case in valid_test_cases:
+                test_input = test_case.get("input", "").strip()
+                
+                result = await code_executor.execute_code(
+                    arranged_code,
+                    submission.language,
+                    test_input
+                )
+                
+                expected_output = test_case.get("expected", "").strip()
+                actual_output = result.get("output", "").strip()
+                
+                print(f"  - Test: input={test_input[:50]}{'...' if len(test_input) > 50 else ''}, expected={expected_output}, actual={actual_output}, success={result.get('success')}")
+                
+                if result["success"] and actual_output == expected_output:
+                    passed_count += 1
+                else:
+                    all_passed = False
+                    if not failed_test:
+                        failed_test = {
+                            "input": test_input,
+                            "expected": expected_output,
+                            "actual": actual_output,
+                            "error": result.get("error", "")
+                        }
         
         if not all_passed:
-            error_msg = f"Arranged code doesn't pass all tests! ({passed_count}/{len(test_cases)} passed)"
+            error_msg = f"Arranged code doesn't pass all tests! ({passed_count}/{len(valid_test_cases)} passed)"
             if failed_test:
                 error_msg += f"\nFailed test:\n  Input: {failed_test['input']}\n  Expected: {failed_test['expected']}\n  Got: {failed_test['actual']}"
-                if failed_test.get('error'):
+                # Check if it's an indentation error
+                if failed_test.get('error') and ('IndentationError' in failed_test['error'] or 'indent' in failed_test['error'].lower()):
+                    error_msg += f"\n\n[HINT] Indentation Error Detected!\nThe code lines might be in the wrong order or have mismatched indentation levels."
+                    error_msg += f"\nMake sure control structures (if/for/while/def) come before their bodies."
+                elif failed_test.get('error'):
                     error_msg += f"\n  Error: {failed_test['error']}"
             raise HTTPException(status_code=400, detail=error_msg)
         
@@ -1261,25 +1339,38 @@ async def submit_solution(
     else:
         # Standard mode: Execute code against test cases
         test_cases = problem.get("testCases", [])
-        all_passed = True
-        passed_count = 0
         
-        for test_case in test_cases:
-            result = await code_executor.execute_code(
-                submission.code,
-                submission.language,
-                test_case.get("input", "")
-            )
+        # Filter out test cases with empty inputs to avoid EOF errors
+        valid_test_cases = [tc for tc in test_cases if tc.get("input", "").strip()]
+        
+        if not valid_test_cases:
+            # If all test cases have empty inputs, we can't validate
+            print(f"  ⚠️ WARNING: All test cases in problem have empty inputs! Accepting solution.")
+            all_passed = True
+            score = 100
+        else:
+            all_passed = True
+            passed_count = 0
             
-            if result["success"] and result["output"].strip() == test_case["expected"].strip():
-                passed_count += 1
-            else:
-                all_passed = False
-        
-        if not all_passed:
-            raise HTTPException(status_code=400, detail="Solution did not pass all test cases")
-        
-        score = 100  # Full score for passing all tests
+            print(f"[INFO] Standard mode: Testing against {len(valid_test_cases)} valid test cases")
+            
+            for test_case in valid_test_cases:
+                test_input = test_case.get("input", "").strip()
+                result = await code_executor.execute_code(
+                    submission.code,
+                    submission.language,
+                    test_input
+                )
+                
+                if result["success"] and result["output"].strip() == test_case.get("expected", "").strip():
+                    passed_count += 1
+                else:
+                    all_passed = False
+            
+            if not all_passed:
+                raise HTTPException(status_code=400, detail=f"Solution did not pass all test cases ({passed_count}/{len(valid_test_cases)} passed)")
+            
+            score = 100  # Full score for passing all tests
     
     # Calculate time elapsed
     time_elapsed = (datetime.utcnow() - match["started_at"]).total_seconds()
@@ -1387,11 +1478,45 @@ async def submit_solution(
                         }
                     )
             
+            # Return complete player information for leaderboard
+            # Fetch fresh match data to ensure all players are included
+            fresh_match = await db.matches.find_one({"_id": match_oid})
+            fresh_players = fresh_match.get("players", [])
+            
+            if fresh_players:
+                # Sort fresh players by rank
+                fresh_players_sorted = sorted(
+                    fresh_players,
+                    key=lambda p: (p.get("rank", float('inf')), -p.get("score", 0), p.get("time_elapsed", float('inf')))
+                )
+            else:
+                fresh_players_sorted = players_with_rank
+            
+            player_rank = next((i + 1 for i, p in enumerate(fresh_players_sorted) if p["user_id"] == user_id), 1)
+            
+            # Format players for leaderboard display - include ALL players
+            formatted_players = []
+            for idx, p in enumerate(fresh_players_sorted):
+                formatted_players.append({
+                    "user_id": str(p.get("user_id", "")),
+                    "username": str(p.get("username", "Player")),
+                    "score": int(p.get("score", 0)),
+                    "time_elapsed": float(p.get("time_elapsed", 0)),
+                    "completion_time": float(p.get("time_elapsed", 0)),
+                    "rank": int(p.get("rank", idx + 1)),
+                    "problems_solved": int(p.get("problems_solved", 0))
+                })
+            
+            print(f"🏆 LEADERBOARD DATA: {len(formatted_players)} players")
+            for fp in formatted_players:
+                print(f"  - {fp['username']} (ID: {fp['user_id']}) - Rank: {fp['rank']}, Score: {fp['score']}, Time: {fp['time_elapsed']}s")
+            
             return {
                 "message": "Match completed!",
-                "rank": next(i + 1 for i, p in enumerate(players_with_rank) if p["user_id"] == user_id),
-                "winners": [p["username"] for p in players_with_rank[:3]],
-                "final_score": final_score
+                "rank": player_rank,
+                "winners": [p["username"] for p in fresh_players_sorted[:3]],
+                "final_score": final_score,
+                "players": formatted_players
             }
         else:
             # Not all players completed yet

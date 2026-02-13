@@ -74,6 +74,11 @@ export default function CompetitiveMatch() {
   // For Match Completion Leaderboard
   const [matchCompleted, setMatchCompleted] = useState(false);
   const [finalResults, setFinalResults] = useState(null);
+  const pollIntervalRef = useRef(null);
+
+  // For Leave Game Confirmation
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [isLeavingGame, setIsLeavingGame] = useState(false);
 
   useEffect(() => {
     fetchMatch();
@@ -82,8 +87,65 @@ export default function CompetitiveMatch() {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
     };
   }, [matchId]);
+
+  // Poll for match completion (check every 2 seconds)
+  useEffect(() => {
+    if (matchCompleted || !matchId) return;
+
+    const pollMatchStatus = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const currentUserId = localStorage.getItem("userId");
+        
+        const res = await fetch(`${API_BASE}/competitive/matches/${matchId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (!res.ok) return;
+        
+        const data = await res.json();
+        
+        // Check if match has been completed
+        if (data.status === "completed" && !matchCompleted) {
+          console.log("[INFO] Match completed! Showing scoreboard for:", currentUserId);
+          
+          if (data.players && data.players.length >= 2) {
+            // Multiplayer match
+            const allPlayers = data.players;
+            const rank = allPlayers.findIndex(p => p.user_id === currentUserId) + 1;
+            
+            setFinalResults({
+              type: 'multiplayer',
+              rank: rank > 0 ? rank : 1,
+              score: allPlayers.find(p => p.user_id === currentUserId)?.score || 0,
+              players: allPlayers,
+              currentUserId
+            });
+          }
+          
+          setMatchCompleted(true);
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+          }
+        }
+      } catch (err) {
+        console.error("[DEBUG] Poll error:", err);
+      }
+    };
+    
+    // Start polling
+    pollIntervalRef.current = setInterval(pollMatchStatus, 2000);
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [matchId, matchCompleted]);
 
   // Update timer based on server start time
   useEffect(() => {
@@ -170,7 +232,7 @@ export default function CompetitiveMatch() {
       const data = await res.json();
 
       // Display scoreboard with current standings
-      if (data.players && data.players.length > 2) {
+      if (data.players && data.players.length >= 2) {
         // Multiplayer
         const sortedPlayers = [...data.players].sort((a, b) => {
           // Sort by problems solved (more is better), then by score (higher is better), then by time (faster is better)
@@ -329,10 +391,28 @@ export default function CompetitiveMatch() {
     }
   };
 
-  // Helper to fix escaped newlines from seed data
+  // Helper to fix escaped newlines from seed data and normalize indentation
   const sanitizeCode = (codeStr) => {
     if (!codeStr) return "";
-    return codeStr.replace(/\\n/g, '\n');
+    // Replace escaped newlines
+    let code = codeStr.replace(/\\n/g, '\n');
+    
+    // Normalize indentation - ensure consistent spacing
+    const lines = code.split('\n');
+    const normalized = lines.map(line => {
+      // Fix lines with mismatched indentation
+      if (line.match(/^ +\S/) && !line.match(/^    /) && !line.match(/^  /)) {
+        // Likely has broken indentation - try to fix it
+        const stripped = line.trimStart();
+        const indent = line.length - stripped.length;
+        // Round indentation to nearest 4-space increment
+        const normalizedIndent = Math.round(indent / 4) * 4;
+        return ' '.repeat(normalizedIndent) + stripped;
+      }
+      return line;
+    });
+    
+    return normalized.join('\n');
   };
 
   const loadGameModeContent = (matchData, problemData, currentUserId) => {
@@ -438,17 +518,21 @@ export default function CompetitiveMatch() {
 
           if (data.winners) {
             // Multiplayer match completed
-            const rank = data.rank || players.findIndex(p => p.user_id === currentUserId) + 1;
+            const allPlayers = data.players || match?.players || [];
+            const rank = data.rank || allPlayers.findIndex(p => p.user_id === currentUserId) + 1;
+
+            console.log("[DEBUG] Match completed with players:", allPlayers.length);
+            console.log("[DEBUG] Players data:", allPlayers);
 
             setFinalResults({
               type: 'multiplayer',
               rank,
               score: data.final_score || data.score || 0,
               winners: data.winners,
-              players: data.players || players,
+              players: allPlayers,
               currentUserId
             });
-            console.log("[INFO] Multiplayer scoreboard set");
+            console.log("[INFO] Multiplayer scoreboard set with", allPlayers.length, "players");
           } else {
             // 1v1 match completed
             const isWinner = data.winner_id === currentUserId;
@@ -524,15 +608,25 @@ export default function CompetitiveMatch() {
         return;
       }
 
+      // Check if problem has test cases or examples
+      const sampleInput = problem.examples?.[0]?.input || problem.testCases?.[0]?.input || "";
+      const expectedOutput = problem.examples?.[0]?.output || problem.testCases?.[0]?.expected || "";
+
+      if (!sampleInput.trim()) {
+        setOutput(
+          `[INFO] Your Arranged Code:\n${arrangedCode}\n\n` +
+          `[WARNING] Cannot test - no sample input available\n\n` +
+          `[TIP] This problem doesn't have test cases defined. Your arrangement will be validated when you submit!\n` +
+          `[INFO] Submit your arrangement to have it officially tested against all test cases.`
+        );
+        return;
+      }
+
       setLoading(true);
       setOutput("Testing your arranged code...");
 
       try {
         const token = localStorage.getItem("token");
-
-        // Use the first example or test case as a sample
-        const sampleInput = problem.examples?.[0]?.input || problem.testCases?.[0]?.input || "";
-        const expectedOutput = problem.examples?.[0]?.output || problem.testCases?.[0]?.expected || "";
 
         const res = await fetch(`${API_BASE}/execute/run`, {
           method: "POST",
@@ -564,11 +658,27 @@ export default function CompetitiveMatch() {
             `[TIP] This is just a sample test. Submit to check arrangement accuracy!`
           );
         } else {
-          setOutput(
-            `[INFO] Your Arranged Code:\n${arrangedCode}\n\n` +
-            `[ERROR] Runtime Error:\n\n${data.error || data.output}\n\n` +
-            `[TIP] The code arrangement might be incorrect or have syntax errors!`
-          );
+          // Check if it's an indentation error
+          const errorMsg = data.error || data.output || "";
+          const isIndentationError = errorMsg.includes("IndentationError") || errorMsg.includes("indent");
+          
+          if (isIndentationError) {
+            setOutput(
+              `[INFO] Your Arranged Code:\n${arrangedCode}\n\n` +
+              `[ERROR] Indentation Error:\n\n${errorMsg}\n\n` +
+              `[TIP] The lines might be in the wrong order. Check that:\n` +
+              `  1. Control structures (if/for/while) are before their bodies\n` +
+              `  2. Indentation levels match the code structure\n` +
+              `  3. Related lines are together in logical order\n\n` +
+              `Try rearranging the lines to fix the indentation!`
+            );
+          } else {
+            setOutput(
+              `[INFO] Your Arranged Code:\n${arrangedCode}\n\n` +
+              `[ERROR] Runtime Error:\n\n${errorMsg}\n\n` +
+              `[TIP] The code arrangement might be incorrect or have syntax errors!`
+            );
+          }
         }
       } catch (err) {
         console.error("Error running arranged code:", err);
@@ -642,10 +752,26 @@ export default function CompetitiveMatch() {
           `[TIP] This is just a sample test. Submit to run all test cases!`
         );
       } else {
-        setOutput(
-          `[ERROR] Runtime Error:\n\n${data.error || data.output}\n\n` +
-          `[TIP] Fix the error and try again!`
-        );
+        // Check for indentation errors and provide helpful feedback
+        const errorMsg = data.error || data.output || "";
+        const isIndentationError = errorMsg.includes("IndentationError") || errorMsg.includes("indent does not match");
+        
+        if (isIndentationError) {
+          setOutput(
+            `[ERROR] Indentation Error:\n\n${errorMsg}\n\n` +
+            `[TIP] In Bug Hunt mode, you need to fix the indentation:\n` +
+            `  1. Check that the indentation is consistent (use spaces, not tabs)\n` +
+            `  2. Make sure code inside if/for/while blocks is indented 4 more spaces\n` +
+            `  3. Code at the same level should have the same indentation\n` +
+            `  4. Use the editor's auto-format if available\n\n` +
+            `[HINT] This is likely a bug that needs to be fixed!`
+          );
+        } else {
+          setOutput(
+            `[ERROR] Runtime Error:\n\n${errorMsg}\n\n` +
+            `[TIP] Fix the error and try again!`
+          );
+        }
       }
     } catch (err) {
       console.error("Error running code:", err);
@@ -674,6 +800,36 @@ export default function CompetitiveMatch() {
       alert("Hint used! Note: This reduces your potential XP bonus.");
     } catch (err) {
       console.error("Error using hint:", err);
+    }
+  };
+
+  const handleLeaveGame = async () => {
+    setIsLeavingGame(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/competitive/matches/${matchId}/leave`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (res.ok) {
+        // Clear the leave confirmation dialog
+        setShowLeaveConfirm(false);
+        // Navigate back to competitive page
+        alert("You have left the game and been marked as lost.");
+        navigate("/competitive");
+      } else {
+        const error = await res.json();
+        alert("Error leaving game: " + (error.detail || "Failed to leave game"));
+      }
+    } catch (err) {
+      console.error("Error leaving game:", err);
+      alert("Failed to leave game. Please try again.");
+    } finally {
+      setIsLeavingGame(false);
     }
   };
 
@@ -774,7 +930,7 @@ export default function CompetitiveMatch() {
   const modeInfo = getGameModeInfo();
 
   // Check if this is a multiplayer match
-  const isMultiplayer = match.players && match.players.length > 2;
+  const isMultiplayer = match.players && match.players.length >= 2;
   const players = match.players || [match.player1, match.player2].filter(p => p);
   const currentUserId = localStorage.getItem("userId");
   const currentPlayer = players.find(p => p.user_id === currentUserId);
@@ -827,7 +983,20 @@ export default function CompetitiveMatch() {
               </div>
             ) : null}
 
-
+            {/* Leave Game Button */}
+            <button
+              onClick={() => setShowLeaveConfirm(true)}
+              disabled={matchCompleted}
+              className={`px-3 py-2 rounded text-xs font-medium flex items-center gap-2 transition-colors ${
+                matchCompleted
+                  ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                  : 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30'
+              }`}
+              title="Leave the game - you will be marked as lost"
+            >
+              <X size={16} />
+              Leave
+            </button>
           </div>
         </div>
 
@@ -1298,6 +1467,49 @@ export default function CompetitiveMatch() {
           )}
         </div>
       </div>
+
+      {/* Leave Game Confirmation Dialog */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className={`rounded-xl shadow-2xl max-w-md w-full border-2 border-red-500/50 ${isDark ? 'bg-slate-900' : 'bg-white'}`}>
+            <div className="p-8">
+              <div className="flex items-center justify-center mb-4">
+                <div className="bg-red-500/20 rounded-full p-3">
+                  <AlertTriangle size={32} className="text-red-400" />
+                </div>
+              </div>
+              <h2 className={`text-2xl font-bold text-center mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>Leave Game?</h2>
+              <p className={`text-center mb-6 ${isDark ? 'text-slate-300' : 'text-gray-600'}`}>
+                If you leave now, you will be <span className="font-bold text-red-400">marked as lost</span> in this match. This cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowLeaveConfirm(false)}
+                  disabled={isLeavingGame}
+                  className={`flex-1 px-4 py-2 rounded font-medium transition-colors ${
+                    isDark
+                      ? 'bg-slate-800 hover:bg-slate-700 text-white'
+                      : 'bg-gray-300 hover:bg-gray-400 text-gray-900'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLeaveGame}
+                  disabled={isLeavingGame}
+                  className={`flex-1 px-4 py-2 rounded font-medium text-white transition-colors ${
+                    isLeavingGame
+                      ? 'bg-red-600/50 cursor-not-allowed'
+                      : 'bg-red-500 hover:bg-red-600'
+                  }`}
+                >
+                  {isLeavingGame ? 'Leaving...' : 'Yes, Leave Game'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Match Completion Leaderboard Overlay */}
       {matchCompleted && finalResults && (
